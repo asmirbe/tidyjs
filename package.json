@@ -23,6 +23,14 @@
         "title": "Format Imports"
       }
     ],
+    "keybindings": [
+      {
+        "command": "extension.formatImports",
+        "key": "ctrl+shift+i",
+        "mac": "cmd+shift+i",
+        "when": "editorTextFocus && !editorReadonly && (editorLangId == 'typescript' || editorLangId == 'javascript' || editorLangId == 'typescriptreact' || editorLangId == 'javascriptreact')"
+      }
+    ],
     "configuration": {
       "title": "Import Formatter",
       "properties": {

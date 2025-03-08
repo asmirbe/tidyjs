@@ -193,6 +193,7 @@ function alignImportsBySection(formattedGroups: Array<{
 }
 
 // Mise à jour de formatImportsWithTsParser pour ajouter une ligne vide finale
+// Correction de la fonction formatImportsWithTsParser pour ne pas modifier le reste du code
 export function formatImportsWithTsParser(sourceText: string): string {
     // Trouver d'abord la plage complète des imports, y compris les fragments orphelins
     const fullImportRange = findAllImportsRange(sourceText);
@@ -213,7 +214,7 @@ export function formatImportsWithTsParser(sourceText: string): string {
     const orphanedMatches = [...importSectionText.matchAll(orphanedFragmentsRegex)];
 
     // Nettoyer le texte d'import en supprimant les commentaires non-nécessaires
-    const cleanedSourceText = removeCommentsFromImports(sourceText);
+    const cleanedSourceText = removeCommentsFromImports(importSectionText);
 
     // Créer un fichier source TypeScript pour l'analyse
     const sourceFile = ts.createSourceFile(
@@ -247,12 +248,27 @@ export function formatImportsWithTsParser(sourceText: string): string {
     const groupedImports = groupImportsOptimized(formattedImports);
     const formattedText = generateFormattedImportsOptimized(groupedImports);
 
-    // Remplacer la section d'imports originale par le texte formaté
-    return (
-        sourceText.substring(0, fullImportRange.start) +
-        formattedText +
-        sourceText.substring(fullImportRange.end)
-    );
+    // Remplacer UNIQUEMENT la section d'imports, pas le reste du texte
+    return formattedText;
+}
+
+// Mise à jour de la fonction exportée formatImports pour maintenir le texte en dehors des imports
+export function formatImports(sourceText: string): string {
+    // Trouver d'abord la plage complète des imports
+    const importRange = findAllImportsRange(sourceText);
+    
+    // Si le texte entier est une section d'imports ou si aucune section d'imports n'est trouvée
+    if (importRange.start === 0 && importRange.end === sourceText.length || 
+        importRange.start === importRange.end) {
+        return formatImportsWithTsParser(sourceText);
+    }
+    
+    // Sinon, on traite que la section d'imports tout en préservant le reste du code
+    const importSectionText = sourceText.substring(importRange.start, importRange.end);
+    const formattedImports = formatImportsWithTsParser(importSectionText);
+    
+    // Reconstruire le texte complet en remplaçant uniquement la section d'imports
+    return sourceText.substring(0, importRange.start) + formattedImports + sourceText.substring(importRange.end);
 }
 
 export function getImportGroup(moduleName: string): string {
@@ -763,7 +779,7 @@ function generateFormattedImportsOptimized(
     return alignedLines.join('\n');
 }
 
-function findAllImportsRange(text: string): { start: number; end: number } {
+export function findAllImportsRange(text: string): { start: number; end: number } {
     // Regex pour trouver les lignes d'import
     const importRegex = /^\s*import\s+.*?(?:from\s+['"][^'"]+['"])?\s*;?.*$/gm;
     
@@ -802,6 +818,8 @@ function findAllImportsRange(text: string): { start: number; end: number } {
 
     // Rechercher les fragments d'imports orphelins et les commentaires de section
     const orphanedFragments: number[] = [];
+    let lastNonImportLinePosition = 0;
+    let foundNonImportAfterImport = false;
 
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
@@ -845,12 +863,18 @@ function findAllImportsRange(text: string): { start: number; end: number } {
             !isImportFragmentLine &&
             !isOrphanedFragment
         ) {
+            // Marquer la position de la première ligne qui n'est pas un import après la section d'imports
+            if (!foundNonImportAfterImport) {
+                lastNonImportLinePosition = currentPos;
+                foundNonImportAfterImport = true;
+            }
+
             const nextLine = i + 1 < lines.length ? lines[i + 1].trim() : '';
             const nextLineIsImport = nextLine.startsWith('import');
             const nextLineIsComment = nextLine.startsWith('//');
 
             if (nextLineIsImport || nextLineIsComment) {
-                sectionEnd = Math.max(sectionEnd, currentPos + lineLength);
+                sectionEnd = Math.max(sectionEnd, currentPos);
             } else {
                 // Vérifier si les prochaines lignes contiennent des fragments d'import
                 let fragmentFound = false;
@@ -862,7 +886,7 @@ function findAllImportsRange(text: string): { start: number; end: number } {
                 }
 
                 if (fragmentFound) {
-                    sectionEnd = Math.max(sectionEnd, currentPos + lineLength);
+                    sectionEnd = Math.max(sectionEnd, currentPos);
                 } else {
                     inImportSection = false;
                 }
@@ -870,6 +894,24 @@ function findAllImportsRange(text: string): { start: number; end: number } {
         }
 
         currentPos += lineLength;
+    }
+    
+    // Si on a trouvé du code après les imports, on s'assure de ne pas l'inclure dans la section d'imports
+    if (foundNonImportAfterImport && lastNonImportLinePosition < sectionEnd) {
+        sectionEnd = lastNonImportLinePosition;
+    }
+
+    // Rechercher le premier type ou const ou let ou function après les imports
+    const codeStartPattern = /^\s*(type|interface|const|let|var|function|class|enum|export)\s+/m;
+    const afterImports = text.substring(lastEnd);
+    const codeStartMatch = codeStartPattern.exec(afterImports);
+    
+    if (codeStartMatch && codeStartMatch.index < 200) {  // Limiter la recherche à 200 caractères après les imports
+        // Ajuster la fin de la section pour arrêter avant la déclaration de code
+        const codeStartPos = lastEnd + codeStartMatch.index;
+        if (codeStartPos < sectionEnd) {
+            sectionEnd = codeStartPos;
+        }
     }
 
     // Rechercher les fragments de commentaires qui pourraient faire partie de la section d'imports
@@ -903,6 +945,17 @@ function findAllImportsRange(text: string): { start: number; end: number } {
 
             sectionEnd = Math.max(sectionEnd, fragmentEnd);
         }
+    }
+
+    // Rechercher une ligne vide après les imports qui marquerait la fin de la section
+    const emptyLineAfterImports = /\n\s*\n/g;
+    emptyLineAfterImports.lastIndex = lastEnd;
+    const emptyLineMatch = emptyLineAfterImports.exec(text);
+    
+    if (emptyLineMatch && emptyLineMatch.index < sectionEnd) {
+        // Si on trouve une ligne vide après le dernier import mais avant notre estimation
+        // de fin de section, on utilise cette ligne vide comme séparateur
+        sectionEnd = emptyLineMatch.index + 1; // +1 pour inclure le premier saut de ligne
     }
 
     return { start: sectionStart, end: sectionEnd };
@@ -946,8 +999,4 @@ function findCommentFragments(
     }
 
     return fragments;
-}
-
-export function formatImports(sourceText: string): string {
-    return formatImportsWithTsParser(sourceText);
 }

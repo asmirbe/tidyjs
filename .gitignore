@@ -2,3 +2,6 @@ node_modules
 .vscode-*
 *.map
 dist/**.map
+repomix-output.txt
+src/.DS_Store
+.repomix/bundles.json

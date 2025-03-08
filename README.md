@@ -71,7 +71,3 @@ import { formatDate } from '@library/helpers';
 
 - Utilisez la commande "Format Document" de VSCode (Alt+Shift+F)
 - Ou utilisez la commande "Format Imports" dans la palette de commandes
-
-## Installation
-
-Recherchez "ImportTidy" dans l'extension marketplace de VSCode ou installez depuis [le marketplace de VSCode](https://marketplace.visualstudio.com/items?itemName=votreNom.importtidy).

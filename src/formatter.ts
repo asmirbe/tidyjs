@@ -254,6 +254,16 @@ export function formatImportsWithTsParser(sourceText: string): string {
 
 // Mise à jour de la fonction exportée formatImports pour maintenir le texte en dehors des imports
 export function formatImports(sourceText: string): string {
+    // 1. Garde contre les entrées vides ou invalides
+    if (!sourceText || sourceText.trim().length === 0) {
+        return sourceText;
+    }
+
+    // 2. Vérifier si le document contient des imports
+    if (!sourceText.includes('import ')) {
+        return sourceText; // Pas d'imports, retourner tel quel
+    }
+    
     // Trouver d'abord la plage complète des imports
     const importRange = findAllImportsRange(sourceText);
     

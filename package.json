@@ -1,0 +1,105 @@
+{
+  "name": "importtidy",
+  "displayName": "ImportTidy",
+  "description": "ImportTidy est une extension VSCode qui organise et formate automatiquement vos déclarations d'import dans les fichiers TypeScript et JavaScript. Elle groupe vos imports par catégories personnalisables, aligne parfaitement les mots-clés 'from', et trie intelligemment vos imports selon leur type et leur longueur. Configurez facilement vos propres groupes d'imports et personnalisez l'espacement pour créer une structure d'imports cohérente et lisible pour vos projets.",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.98.0"
+  },
+  "main": "./dist/extension.js",
+  "categories": [
+    "Formatters"
+  ],
+  "activationEvents": [
+    "onLanguage:typescript",
+    "onLanguage:javascript",
+    "onLanguage:typescriptreact",
+    "onLanguage:javascriptreact"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "extension.formatImports",
+        "title": "Format Imports"
+      }
+    ],
+    "configuration": {
+      "title": "Import Formatter",
+      "properties": {
+        "importFormatter.groups": {
+          "type": "array",
+          "default": [
+            {
+              "name": "Misc",
+              "regex": "^(react|lodash|date-fns)$",
+              "order": 0
+            },
+            {
+              "name": "DS",
+              "regex": "^ds$",
+              "order": 1
+            },
+            {
+              "name": "@app/dossier",
+              "regex": "^@app\\/dossier",
+              "order": 2
+            },
+            {
+              "name": "@core",
+              "regex": "^@core",
+              "order": 3
+            },
+            {
+              "name": "@library",
+              "regex": "^@library",
+              "order": 4
+            },
+            {
+              "name": "Utils",
+              "regex": "^yutils",
+              "order": 5
+            }
+          ],
+          "description": "Define import groups, their regex matchers, and ordering"
+        },
+        "importFormatter.alignmentSpacing": {
+          "type": "number",
+          "default": 1,
+          "minimum": 0,
+          "description": "Number of spaces to add when aligning 'from' keywords in imports"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run package",
+    "compile": "npm run check-types && npm run lint && node esbuild.js",
+    "watch": "npm-run-all -p watch:*",
+    "watch:esbuild": "node esbuild.js --watch",
+    "watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
+    "package": "npm run check-types && npm run lint && node esbuild.js --production",
+    "compile-tests": "tsc -p . --outDir out",
+    "watch-tests": "tsc -p . -w --outDir out",
+    "pretest": "npm run compile-tests && npm run compile && npm run lint",
+    "check-types": "tsc --noEmit",
+    "lint": "eslint src",
+    "test": "vscode-test"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.10",
+    "@types/node": "20.x",
+    "@types/vscode": "^1.98.0",
+    "@typescript-eslint/eslint-plugin": "^8.25.0",
+    "@typescript-eslint/parser": "^8.25.0",
+    "@vscode/test-cli": "^0.0.10",
+    "@vscode/test-electron": "^2.4.1",
+    "esbuild": "^0.25.0",
+    "esbuild-plugin-copy": "^2.1.1",
+    "eslint": "^9.21.0",
+    "npm-run-all": "^4.1.5",
+    "typescript": "^5.7.3"
+  },
+  "dependencies": {
+    "glob": "^11.0.1"
+  }
+}

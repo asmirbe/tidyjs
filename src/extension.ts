@@ -51,7 +51,6 @@ export function activate(context: vscode.ExtensionContext) {
 
       const document = editor.document;
       
-      // Option 1: Format selected text if there is a selection
       if (!editor.selection.isEmpty) {
         const selectedText = document.getText(editor.selection);
         const formattedText = formatImports(selectedText);

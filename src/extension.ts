@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
-import { loadConfiguration, formatImports } from './formatter';
-import { logDebug, logError } from './utils/utils';
+import { logDebug, logError } from './utils/log';
+import { loadConfiguration } from './utils/config';
+import { formatImports } from './formatter';
 
 export function activate(context: vscode.ExtensionContext) {
   loadConfiguration();
@@ -13,7 +14,7 @@ export function activate(context: vscode.ExtensionContext) {
 
   const formatImportsCommand = vscode.commands.registerCommand(
     'extension.formatImports',
-    () => {
+    async () => {
       const editor = vscode.window.activeTextEditor;
       if (!editor) {
         vscode.window.showErrorMessage('No active editor found');
@@ -30,7 +31,7 @@ export function activate(context: vscode.ExtensionContext) {
         
         try {
           // Tenter de formater les imports uniquement dans cette sélection
-          const formattedText = formatImports(selectedText);
+          const formattedText = await formatImports(selectedText);
           
           editor.edit((editBuilder) => {
             editBuilder.replace(selectedRange, formattedText);
@@ -51,35 +52,53 @@ export function activate(context: vscode.ExtensionContext) {
       
       // Si aucune sélection n'existe, détecter et formatter automatiquement la section d'imports
       try {
-        // Formater tout le document en ne modifiant que les imports
-        const formattedDocument = formatImports(documentText);
-        
-        // Vérifier si le texte a été modifié avant d'appliquer les changements
-        if (formattedDocument !== documentText) {
-          const fullDocumentRange = new vscode.Range(
-            document.positionAt(0),
-            document.positionAt(documentText.length)
-          );
+        // Afficher un indicateur de progression pour les gros fichiers
+        vscode.window.withProgress({
+          location: vscode.ProgressLocation.Notification,
+          title: "Formatting imports...",
+          cancellable: false
+        }, async (progress) => {
+          progress.report({ increment: 30, message: "Analyzing imports..." });
           
-          // Remplacer tout le document par la version formatée
-          editor.edit((editBuilder) => {
-            editBuilder.replace(fullDocumentRange, formattedDocument);
-          }).then((success) => {
-            if (success) {
-              logDebug('Successfully formatted imports in document');
-              vscode.window.showInformationMessage('Imports formatted successfully!');
+          try {
+            // Formater tout le document en ne modifiant que les imports
+            const formattedDocument = await formatImports(documentText);
+            
+            progress.report({ increment: 40, message: "Applying changes..." });
+            
+            // Vérifier si le texte a été modifié avant d'appliquer les changements
+            if (formattedDocument !== documentText) {
+              const fullDocumentRange = new vscode.Range(
+                document.positionAt(0),
+                document.positionAt(documentText.length)
+              );
+              
+              // Remplacer tout le document par la version formatée
+              await editor.edit((editBuilder) => {
+                editBuilder.replace(fullDocumentRange, formattedDocument);
+              }).then((success) => {
+                if (success) {
+                  logDebug('Successfully formatted imports in document');
+                  progress.report({ increment: 30, message: "Complete!" });
+                  vscode.window.showInformationMessage('Imports formatted successfully!');
+                } else {
+                  logError('Edit operation failed');
+                  vscode.window.showErrorMessage('Failed to format imports');
+                }
+              }, (error) => {
+                logError('Error during edit operation:', error);
+                vscode.window.showErrorMessage('Error formatting imports: ' + String(error));
+              });
             } else {
-              logError('Edit operation failed');
-              vscode.window.showErrorMessage('Failed to format imports');
+              logDebug('No changes needed for imports');
+              progress.report({ increment: 30, message: "No changes needed!" });
+              vscode.window.showInformationMessage('No imports needed formatting');
             }
-          }, (error) => {
-            logError('Error during edit operation:', error);
+          } catch (error) {
+            logError('Error formatting imports:', error);
             vscode.window.showErrorMessage('Error formatting imports: ' + String(error));
-          });
-        } else {
-          logDebug('No changes needed for imports');
-          vscode.window.showInformationMessage('No imports needed formatting');
-        }
+          }
+        });
       } catch (error) {
         logError('Error formatting imports:', error);
         vscode.window.showErrorMessage('Error formatting imports: ' + String(error));

@@ -75,6 +75,18 @@
           "default": 1,
           "minimum": 0,
           "description": "Number of spaces to add when aligning 'from' keywords in imports"
+        },
+        "importFormatter.preserveComments": {
+          "type": "boolean",
+          "default": true,
+          "description": "Preserve inline comments within imports during formatting"
+        },
+        "importFormatter.performance.maxImportLines": {
+          "type": "number",
+          "default": 100,
+          "minimum": 10,
+          "maximum": 1000,
+          "description": "Maximum number of lines to scan for imports (improves performance with large files)"
         }
       }
     }

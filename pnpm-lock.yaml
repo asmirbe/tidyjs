@@ -8,9 +8,15 @@ importers:
 
   .:
     dependencies:
+      '@typescript-eslint/typescript-estree':
+        specifier: ^8.26.0
+        version: 8.26.0(typescript@5.8.2)
       glob:
         specifier: ^11.0.1
         version: 11.0.1
+      react:
+        specifier: ^19.0.0
+        version: 19.0.0
     devDependencies:
       '@types/mocha':
         specifier: ^10.0.10
@@ -1318,6 +1324,10 @@ packages:
 
   randombytes@2.1.0:
     resolution: {integrity: sha512-vYl3iOX+4CKUWuxGi9Ukhie6fsqXqS9FE2Zaic4tNFD2N2QQaXOMFbuKK4QmDHC0JO6B1Zp41J0LpT0oR68amQ==}
+
+  react@19.0.0:
+    resolution: {integrity: sha512-V8AVnmPIICiWpGfm6GLzCR/W5FXLchHop40W4nXBmdlEceh16rCN8O8LNWm5bh5XUX91fh7KpA+W0TgMKmgTpQ==}
+    engines: {node: '>=0.10.0'}
 
   read-pkg@3.0.0:
     resolution: {integrity: sha512-BLq/cCO9two+lBgiTYNqD6GdtK8s4NpaWrl6/rCO9w0TUS8oJl7cmToOZfRYllKTISY6nt1U7jQ53brmKqY6BA==}
@@ -3070,6 +3080,8 @@ snapshots:
   randombytes@2.1.0:
     dependencies:
       safe-buffer: 5.2.1
+
+  react@19.0.0: {}
 
   read-pkg@3.0.0:
     dependencies:

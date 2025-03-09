@@ -1,7 +1,6 @@
 import * as vscode from 'vscode';
 import { logDebug } from "./log";
 import { ImportGroup } from "../types";
-import { loadPerformanceConfiguration } from './performance';
 
 export let ALIGNMENT_SPACING = 1;
 
@@ -35,6 +34,4 @@ export function loadConfiguration() {
     if (typeof alignmentSpacing === 'number' && alignmentSpacing >= 0) {
         ALIGNMENT_SPACING = alignmentSpacing;
     }
-    
-    loadPerformanceConfiguration();
 }

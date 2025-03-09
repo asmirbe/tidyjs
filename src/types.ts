@@ -18,6 +18,11 @@ export interface ImportNode {
     group: string;
 }
 
+export interface ImportNameWithComment {
+    name: string;
+    comment: string;
+}
+
 export interface FormattedImport {
     statement: string;
     group: ImportGroup;
@@ -43,6 +48,8 @@ export interface FormatterConfig {
         importFragment: RegExp;
         sectionCommentPattern: RegExp;
         anyComment: RegExp;
+        codeDeclaration: RegExp;
+        typeDeclaration: RegExp;
         orphanedFragments: RegExp;
         possibleCommentFragment: RegExp;
     };

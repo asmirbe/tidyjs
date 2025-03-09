@@ -1,139 +1,164 @@
 import * as ts from "typescript";
 import { FormattedImport, ImportGroup } from "./types";
+import { DEFAULT_IMPORT_GROUPS } from "./utils/config";
+import { logDebug } from "./utils/log";
+
+// Constantes pour les expressions régulières fréquemment utilisées
+const TYPE_KEYWORD_REGEX = /^type\s+/;
+
+// Cache pour les résultats de getImportGroup
+const importGroupCache = new Map<string, string>();
 
 function getImportGroup(moduleName: string, importGroups: ImportGroup[]): string {
-    // Chercher d'abord un match direct dans les groupes configurés
-    const importGroup = importGroups.find((group) =>
-        group.regex.test(moduleName)
-    );
-
-    if (importGroup) {
-        return importGroup.name;
+    // Utiliser le cache pour éviter les recherches répétitives
+    if (importGroupCache.has(moduleName)) {
+        return importGroupCache.get(moduleName)!;
     }
 
-    // Règles de fallback
-    if (moduleName.startsWith('@library')) {
-        return '@library';
-    } else if (moduleName.startsWith('@app/dossier')) {
-        return '@app/dossier';
-    } else if (moduleName.startsWith('@core')) {
-        return '@core';
-    } else if (moduleName.startsWith('yutils')) {
-        return 'Utils';
-    } else if (moduleName === 'ds') {
-        return 'DS';
-    } else if (['react', 'lodash', 'date-fns'].includes(moduleName)) {
-        return 'Misc';
-    }
+    const importGroup = importGroups.find((group) => group.regex.test(moduleName));
+    const groupName = importGroup ? importGroup.name : "Misc";
+    
+    // Stocker dans le cache
+    importGroupCache.set(moduleName, groupName);
+    return groupName;
+}
 
-    // Par défaut, mettre dans Misc
-    return 'Misc';
+// Fonction optimisée pour traiter les imports nommés
+function parseNamedImports(
+    namedBindings: ts.NamedImports,
+    sourceFile: ts.SourceFile
+): { regular: Set<string>; types: Set<string> } {
+    const regularImports = new Set<string>();
+    const typeImports = new Set<string>();
+    
+    for (const element of namedBindings.elements) {
+        const sourceText = sourceFile.text.substring(
+            element.getStart(sourceFile),
+            element.getEnd()
+        );
+        
+        if (TYPE_KEYWORD_REGEX.test(sourceText)) {
+            typeImports.add(element.name.text);
+        } else {
+            if (element.propertyName) {
+                regularImports.add(`${element.propertyName.text} as ${element.name.text}`);
+            } else {
+                regularImports.add(element.name.text);
+            }
+        }
+    }
+    
+    return { regular: regularImports, types: typeImports };
 }
 
 export function parseImports(
     importNodes: ts.ImportDeclaration[],
     sourceFile: ts.SourceFile,
-    importGroups: ImportGroup[]
+    importGroups: ImportGroup[] = DEFAULT_IMPORT_GROUPS
 ): FormattedImport[] {
+    // Validation d'entrée
+    if (!importNodes || importNodes.length === 0) {
+        return [];
+    }
+    
+    if (!sourceFile) {
+        logDebug("parseImports: Fichier source manquant");
+        return [];
+    }
+    
+    // Utiliser DEFAULT_IMPORT_GROUPS si aucun groupe n'est fourni
+    const groups = importGroups.length > 0 ? importGroups : DEFAULT_IMPORT_GROUPS;
+    
+    // Préparer le résultat (avec taille pré-allouée approximative)
     const result: FormattedImport[] = [];
-
-    for (const node of importNodes) {
-        const moduleSpecifier = node.moduleSpecifier as ts.StringLiteral;
-        const moduleName = moduleSpecifier.text;
-
-        // Utiliser uniquement getImportGroup pour déterminer le groupe
-        const groupName = getImportGroup(moduleName, importGroups);
-
-        // Trouver l'objet ImportGroup correspondant
-        let importGroup = importGroups.find((g) => g.name === groupName);
-
-        // Si le groupe n'est pas dans la liste par défaut, créer un groupe Misc
-        if (!importGroup) {
-            importGroup = { name: 'Misc', regex: /.*/, order: 0 };
-        }
-
-        let importNames: string[] = [];
-        let typeImportNames: string[] = [];
-        let isTypeImport = false;
-        let isDefaultImport = false;
-        let hasNamedImports = false;
-
-        if (node.importClause) {
-            if (node.importClause.name) {
-                isDefaultImport = true;
-                importNames.push(node.importClause.name.text);
+    
+    try {
+        for (const node of importNodes) {
+            // Ignorer les nœuds invalides
+            if (!node.moduleSpecifier || !ts.isStringLiteral(node.moduleSpecifier)) {
+                continue;
             }
 
-            if (node.importClause.namedBindings) {
-                if (ts.isNamedImports(node.importClause.namedBindings)) {
-                    // Analyser les imports nommés pour identifier les types inline
-                    for (const element of node.importClause.namedBindings.elements) {
-                        const sourceText = sourceFile.text.substring(
-                            element.getStart(sourceFile),
-                            element.getEnd()
+            const moduleName = node.moduleSpecifier.text;
+            const groupName = getImportGroup(moduleName, groups);
+            
+            // Trouver l'objet ImportGroup correspondant une seule fois par module
+            const importGroup = groups.find((g) => g.name === groupName) || 
+                                { name: 'Misc', regex: /.*/, order: 0 };
+            
+            // Collections pour les noms d'imports
+            const importNames = new Set<string>();
+            const typeImportNames = new Set<string>();
+            
+            let isTypeImport = false;
+            let isDefaultImport = false;
+            let hasNamedImports = false;
+            
+            if (node.importClause) {
+                const importClause = node.importClause;
+                isTypeImport = !!importClause.isTypeOnly;
+                
+                // Traitement de l'import par défaut
+                if (importClause.name) {
+                    isDefaultImport = true;
+                    importNames.add(importClause.name.text);
+                }
+                
+                // Traitement des imports nommés ou namespace
+                if (importClause.namedBindings) {
+                    if (ts.isNamedImports(importClause.namedBindings)) {
+                        const { regular, types } = parseNamedImports(
+                            importClause.namedBindings, 
+                            sourceFile
                         );
-
-                        // Détecter les imports de type inline (comme "type FC")
-                        const isInlineType = sourceText.startsWith('type ');
-
-                        if (isInlineType) {
-                            // Extraire le nom du type sans le mot-clé "type"
-                            const typeName = element.name.text;
-                            typeImportNames.push(typeName);
-                        } else {
-                            // Import normal
-                            if (element.propertyName) {
-                                importNames.push(`${element.propertyName.text} as ${element.name.text}`);
-                            } else {
-                                importNames.push(element.name.text);
-                            }
-                        }
+                        
+                        // Ajouter tous les noms d'imports aux ensembles
+                        regular.forEach(name => importNames.add(name));
+                        types.forEach(name => typeImportNames.add(name));
+                        
+                        hasNamedImports = regular.size > 0;
+                    } else if (ts.isNamespaceImport(importClause.namedBindings)) {
+                        importNames.add(`* as ${importClause.namedBindings.name.text}`);
+                        hasNamedImports = true;
                     }
-
-                    // Définir hasNamedImports uniquement s'il y a des imports nommés
-                    // après avoir filtré les imports de type
-                    hasNamedImports = importNames.length > (isDefaultImport ? 1 : 0);
-
-                } else if (ts.isNamespaceImport(node.importClause.namedBindings)) {
-                    importNames.push(`* as ${node.importClause.namedBindings.name.text}`);
-                    hasNamedImports = true;
                 }
             }
-
-            isTypeImport = !!node.importClause.isTypeOnly;
+            
+            // Extraire le texte original pour référence
+            const statement = sourceFile.text.substring(
+                node.getStart(sourceFile),
+                node.getEnd()
+            );
+            
+            // Créer l'import principal s'il contient des noms réguliers
+            if (importNames.size > 0) {
+                result.push({
+                    statement,
+                    group: importGroup,
+                    moduleName,
+                    importNames: Array.from(importNames),
+                    isTypeImport,
+                    isDefaultImport,
+                    hasNamedImports
+                });
+            }
+            
+            // Créer un import séparé pour les types inline si nécessaire
+            if (typeImportNames.size > 0) {
+                result.push({
+                    statement: `import type { ${Array.from(typeImportNames).join(', ')} } from '${moduleName}';`,
+                    group: importGroup,
+                    moduleName,
+                    importNames: Array.from(typeImportNames),
+                    isTypeImport: true,
+                    isDefaultImport: false,
+                    hasNamedImports: true
+                });
+            }
         }
-
-        const statement = sourceFile.text.substring(
-            node.getStart(sourceFile),
-            node.getEnd()
-        );
-
-        // Vérifier s'il y a des imports normaux avant de créer l'import principal
-        if (importNames.length > 0) {
-            result.push({
-                statement,
-                group: importGroup,
-                moduleName,
-                importNames,
-                isTypeImport,
-                isDefaultImport,
-                hasNamedImports
-            });
-        }
-
-        // Créer un import de type séparé pour les types inline
-        if (typeImportNames.length > 0) {
-            result.push({
-                statement: `import type { ${typeImportNames.join(', ')} } from '${moduleName}';`,
-                group: importGroup,
-                moduleName,
-                importNames: typeImportNames,
-                isTypeImport: true,
-                isDefaultImport: false,
-                hasNamedImports: true,
-            });
-        }
+    } catch (error) {
+        logDebug(`Erreur dans parseImports: ${error instanceof Error ? error.message : String(error)}`);
     }
-
+    
     return result;
 }

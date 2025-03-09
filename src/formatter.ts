@@ -1,116 +1,53 @@
 import * as ts from 'typescript';
 import { logDebug } from './utils/log';
-import { DEFAULT_IMPORT_GROUPS as IMPORTED_IMPORT_GROUPS } from './utils/config';
-import type { FormattedImport } from './types';
-import { sortImportNamesByLength } from './utils/misc';
 import { parseImports } from './parser';
+import { DEFAULT_IMPORT_GROUPS as IMPORTED_IMPORT_GROUPS } from './utils/config';
+import { alignFromKeyword, getFromIndex, isCommentLine, isEmptyLine, isSectionComment, sortImportNamesByLength } from './utils/misc';
+import type { FormattedImport, FormatterConfig, FormattedImportGroup } from './types';
 
-let IMPORT_GROUPS = [...IMPORTED_IMPORT_GROUPS];
-let ALIGNMENT_SPACING = 1; // Valeur par défaut
-
-function alignImportsBySection(formattedGroups: Array<{
-    groupName: string;
-    commentLine: string;
-    importLines: string[];
-}>): string[] {
-    const resultLines: string[] = [];
-    // Maintenir un ensemble de noms de groupe déjà vus
-    const seenGroups = new Set<string>();
-
-    for (const group of formattedGroups) {
-        const groupName = group.groupName;
+// Configuration par défaut exportée pour permettre les surcharges
+export const DEFAULT_FORMATTER_CONFIG: FormatterConfig = {
+    importGroups: [...IMPORTED_IMPORT_GROUPS],
+    alignmentSpacing: 1,
+    regexPatterns: (() => {
+        const patterns = {
+            importLine: /^\s*import\s+.*?(?:from\s+['"][^'"]+['"])?\s*;?.*$/gm,
+            sectionComment: /^\s*\/\/\s*(?:Misc|DS|@app\/.*|@core|@library|Utils|.*\b(?:misc|ds|dossier|core|library|utils)\b.*)\s*$/gim,
+            importFragment: /^\s*([a-zA-Z0-9_]+,|[{}],?|\s*[a-zA-Z0-9_]+,?|\s*[a-zA-Z0-9_]+\s+from|\s*from|^[,}]\s*)$/,
+            sectionCommentPattern: /^\s*\/\/\s*(?:Misc|DS|@app\/.*|@core|@library|Utils)/,
+            anyComment: /^\s*\/\//,
+            orphanedFragments: /(?:^\s*from|^\s*[{}]|\s*[a-zA-Z0-9_]+,|\s*[a-zA-Z0-9_]+\s+from)/gm,
+            possibleCommentFragment: /^\s*[a-z]{1,5}\s*$|^\s*\/?\s*[A-Z][a-z]+\s*$|(^\s*\/+\s*$)/
+        };
         
-        // Si ce groupe a déjà été traité, ignorer son commentaire
-        if (seenGroups.has(groupName)) {
-            logDebug(`Groupe dupliqué ignoré: ${groupName}`);
-            continue;
+        // Pré-compiler les expressions régulières pour éviter de les recompiler à chaque utilisation
+        const compiledRegex: Record<string, RegExp> = {};
+        
+        for (const [key, pattern] of Object.entries(patterns)) {
+            compiledRegex[key] = new RegExp(pattern.source, pattern.flags);
         }
         
-        seenGroups.add(groupName);
-        
-        // Ajouter le commentaire de groupe normalisé
-        resultLines.push(`// ${groupName}`);
+        return compiledRegex as FormatterConfig['regexPatterns'];
+    })()
+};
 
-        // Aligner les imports au sein du groupe
-        const imports = group.importLines;
+// Cache pour la memoization des calculs de longueur
+const lengthMemoCache = new Map<string, number>();
 
-        // Trouver le "from" le plus éloigné dans ce groupe
-        const maxWidth = imports.reduce((max: number, line: string) => {
-            if (line.includes('\n')) {
-                const lines = line.split('\n');
-                const lastLine = lines[lines.length - 1];
-                const fromIndex = lastLine.indexOf('from');
-                if (fromIndex > 0) {
-                    return Math.max(max, fromIndex);
-                }
-            } else {
-                const fromIndex = line.indexOf('from');
-                if (fromIndex > 0) {
-                    return Math.max(max, fromIndex);
-                }
-            }
-            return max;
-        }, 0);
-
-        // Aligner tous les "from" du groupe en ajoutant l'espacement configuré
-        const alignedImports = imports.map((line) => {
-            if (line.includes('\n')) {
-                const lines = line.split('\n');
-                const lastLineIndex = lines.length - 1;
-                const lastLine = lines[lastLineIndex];
-
-                const fromIndex = lastLine.indexOf('from');
-                if (fromIndex > 0) {
-                    // Ajouter l'espacement configuré + l'alignement
-                    const padding = ' '.repeat(maxWidth - fromIndex + ALIGNMENT_SPACING);
-                    lines[lastLineIndex] =
-                        lastLine.substring(0, fromIndex) +
-                        padding +
-                        'from' +
-                        lastLine.substring(fromIndex + 4);
-                    return lines.join('\n');
-                }
-                return line;
-            } else {
-                const fromIndex = line.indexOf('from');
-                if (fromIndex > 0) {
-                    // Ajouter l'espacement configuré + l'alignement
-                    const padding = ' '.repeat(maxWidth - fromIndex + ALIGNMENT_SPACING);
-                    return (
-                        line.substring(0, fromIndex) +
-                        padding +
-                        'from' +
-                        line.substring(fromIndex + 4)
-                    );
-                }
-                return line;
-            }
-        });
-
-        // Ajouter les imports alignés
-        for (const importLine of alignedImports) {
-            resultLines.push(importLine);
-        }
-
-        // Ajouter une ligne vide après chaque groupe
-        resultLines.push('');
-    }
-
-    // Nettoyage des lignes vides et commentaires dupliqués
+// Refactoring: Extraction de la logique de nettoyage des lignes pour réutilisation
+function cleanUpLines(lines: string[]): string[] {
     const cleanedLines: string[] = [];
     let previousLine = '';
     let consecutiveEmptyLines = 0;
 
-    for (let i = 0; i < resultLines.length; i++) {
-        const currentLine = resultLines[i];
-
+    for (const currentLine of lines) {
         // Ne pas ajouter de commentaires identiques à la suite
-        if (currentLine.startsWith('//') && previousLine === currentLine) {
+        if (isCommentLine(currentLine) && previousLine === currentLine) {
             continue;
         }
 
         // Gérer les lignes vides
-        if (currentLine.trim() === '') {
+        if (isEmptyLine(currentLine)) {
             consecutiveEmptyLines++;
             if (consecutiveEmptyLines > 1) {
                 continue;
@@ -124,7 +61,7 @@ function alignImportsBySection(formattedGroups: Array<{
     }
 
     // Supprimer la dernière ligne vide si elle existe
-    if (cleanedLines.length > 0 && cleanedLines[cleanedLines.length - 1].trim() === '') {
+    if (cleanedLines.length > 0 && isEmptyLine(cleanedLines[cleanedLines.length - 1])) {
         cleanedLines.pop();
     }
 
@@ -134,47 +71,178 @@ function alignImportsBySection(formattedGroups: Array<{
     return cleanedLines;
 }
 
-function removeCommentsFromImports(text: string): string {
-    // Définir un motif pour les commentaires de section
-    const sectionCommentPattern = /^\s*\/\/\s*(?:Misc|DS|@app\/.*|@core|@library|Utils)/;
+// Refactoring: Extraction de l'alignement des imports vers une fonction réutilisable
+function alignImportsInGroup(
+    importLines: string[], 
+    config: FormatterConfig
+): string[] {
+    // Optimisation: Calculer les indices "from" en une seule passe
+    const fromIndices = new Map<string, number>();
+    let maxWidth = 0;
     
+    for (const line of importLines) {
+        const isMultiline = line.includes('\n');
+        const fromIndex = getFromIndex(line, isMultiline);
+        
+        if (fromIndex > 0) {
+            fromIndices.set(line, fromIndex);
+            maxWidth = Math.max(maxWidth, fromIndex);
+        }
+    }
+
+    // Aligner tous les "from" du groupe en ajoutant l'espacement configuré
+    return importLines.map((line) => {
+        const fromIndex = fromIndices.get(line);
+        if (fromIndex !== undefined) {
+            return alignFromKeyword(line, fromIndex, maxWidth, config.alignmentSpacing);
+        }
+        return line;
+    });
+}
+
+// Refactoring: Réduction de la duplication dans alignImportsBySection
+function alignImportsBySection(
+    formattedGroups: FormattedImportGroup[],
+    config: FormatterConfig = DEFAULT_FORMATTER_CONFIG
+): string[] {
+    const resultLines: string[] = [];
+    const seenGroups = new Set<string>();
+
+    for (const group of formattedGroups) {
+        const { groupName, importLines } = group;
+        
+        // Si ce groupe a déjà été traité, ignorer son commentaire
+        if (seenGroups.has(groupName)) {
+            logDebug(`Groupe dupliqué ignoré: ${groupName}`);
+            continue;
+        }
+        
+        seenGroups.add(groupName);
+        
+        // Ajouter le commentaire de groupe normalisé
+        resultLines.push(`// ${groupName}`);
+
+        // Aligner les imports au sein du groupe
+        const alignedImports = alignImportsInGroup(importLines, config);
+
+        // Ajouter les imports alignés
+        resultLines.push(...alignedImports);
+
+        // Ajouter une ligne vide après chaque groupe
+        resultLines.push('');
+    }
+
+    // Nettoyage des lignes vides et commentaires dupliqués
+    return cleanUpLines(resultLines);
+}
+
+function removeCommentsFromImports(text: string, config: FormatterConfig): string {
     // Traiter chaque ligne séparément
     return text.split('\n').map(line => {
         // Ne pas supprimer les commentaires de section
-        if (sectionCommentPattern.test(line)) {
+        if (isSectionComment(line, config)) {
             return line;
         }
         // Supprimer les autres commentaires
-        if (/^\s*\/\//.test(line)) {
+        if (config.regexPatterns.anyComment.test(line)) {
             return '';
         }
         return line;
     }).join('\n');
 }
 
-function getEffectiveLengthForSorting(importItem: FormattedImport): number {
+// Fonction de memoization pour le calcul des longueurs
+function getMemoizedLength(importItem: FormattedImport): number {
+    // Créer une clé unique basée sur les propriétés de l'import
+    const cacheKey = `${importItem.moduleName}_${importItem.isDefaultImport}_${importItem.hasNamedImports}_${importItem.importNames.join(',')}`;
+    
+    if (lengthMemoCache.has(cacheKey)) {
+        return lengthMemoCache.get(cacheKey)!;
+    }
+    
+    const length = calculateEffectiveLengthForSorting(importItem);
+    lengthMemoCache.set(cacheKey, length);
+    return length;
+}
+
+// Fonction réelle de calcul de longueur
+function calculateEffectiveLengthForSorting(importItem: FormattedImport): number {
+    // Import par défaut sans imports nommés
     if (importItem.isDefaultImport && !importItem.hasNamedImports) {
         return importItem.importNames[0].length;
     }
-
+    
+    // Imports nommés sans import par défaut
     if (!importItem.isDefaultImport && importItem.hasNamedImports) {
         const namedImports = importItem.importNames;
         if (namedImports.length > 0) {
-            return Math.min(...namedImports.map((name) => name.length));
+            // Optimisation: Éviter de mapper puis de prendre le min
+            let minLength = Number.MAX_SAFE_INTEGER;
+            for (const name of namedImports) {
+                minLength = Math.min(minLength, name.length);
+            }
+            return minLength === Number.MAX_SAFE_INTEGER ? 0 : minLength;
         }
     }
-
+    
+    // Import par défaut avec imports nommés
     if (importItem.isDefaultImport && importItem.hasNamedImports) {
         const namedImports = importItem.importNames.slice(1);
         if (namedImports.length > 0) {
-            return Math.min(...namedImports.map((name) => name.length));
+            // Optimisation: Éviter de mapper puis de prendre le min
+            let minLength = Number.MAX_SAFE_INTEGER;
+            for (const name of namedImports) {
+                minLength = Math.min(minLength, name.length);
+            }
+            return minLength === Number.MAX_SAFE_INTEGER ? importItem.importNames[0].length : minLength;
         }
         return importItem.importNames[0].length;
     }
-
+    
+    // Cas par défaut
     return 999;
 }
 
+// Remplacer getEffectiveLengthForSorting par la version memoizée
+const getEffectiveLengthForSorting = getMemoizedLength;
+
+// Refactoring: Séparation des branches de formatage d'import pour plus de clarté
+function formatSimpleImport(moduleName: string): string {
+    return `import '${moduleName}';`;
+}
+
+function formatDefaultImport(defaultName: string, moduleName: string, isTypeImport: boolean): string {
+    return isTypeImport 
+        ? `import type ${defaultName} from '${moduleName}';`
+        : `import ${defaultName} from '${moduleName}';`;
+}
+
+function formatNamedImports(namedImports: string[], moduleName: string, isTypeImport: boolean): string {
+    const typePrefix = isTypeImport ? 'type ' : '';
+    
+    return namedImports.length === 1
+        ? `import ${typePrefix}{ ${namedImports[0]} } from '${moduleName}';`
+        : `import ${typePrefix}{
+    ${namedImports.join(',\n    ')}
+} from '${moduleName}';`;
+}
+
+function formatDefaultAndNamedImports(
+    defaultName: string, 
+    namedImports: string[], 
+    moduleName: string, 
+    isTypeImport: boolean
+): string {
+    const typePrefix = isTypeImport ? 'type ' : '';
+    
+    return namedImports.length === 1
+        ? `import ${typePrefix}${defaultName}, { ${namedImports[0]} } from '${moduleName}';`
+        : `import ${typePrefix}${defaultName}, {
+    ${namedImports.join(',\n    ')}
+} from '${moduleName}';`;
+}
+
+// Refactoring: Utilisation des fonctions auxiliaires pour le formatage des imports
 function formatImportItem(
     importItem: FormattedImport,
     statements: string[]
@@ -189,7 +257,7 @@ function formatImportItem(
 
     // Si aucun nom d'import, c'est un import de module simple
     if (importNames.length === 0) {
-        statements.push(`import '${moduleName}';`);
+        statements.push(formatSimpleImport(moduleName));
         return;
     }
 
@@ -200,11 +268,7 @@ function formatImportItem(
 
     // Import par défaut uniquement
     if (isDefaultImport && namedImports.length === 0) {
-        if (isTypeImport) {
-            statements.push(`import type ${importNames[0]} from '${moduleName}';`);
-        } else {
-            statements.push(`import ${importNames[0]} from '${moduleName}';`);
-        }
+        statements.push(formatDefaultImport(importNames[0], moduleName, isTypeImport));
         return;
     }
 
@@ -213,57 +277,16 @@ function formatImportItem(
 
     // Import par défaut ET imports nommés
     if (isDefaultImport && namedImports.length > 0) {
-        // Un seul import nommé -> une ligne
-        if (sortedNamedImports.length === 1) {
-            if (isTypeImport) {
-                statements.push(
-                    `import type ${importNames[0]}, { ${sortedNamedImports[0]} } from '${moduleName}';`
-                );
-            } else {
-                statements.push(
-                    `import ${importNames[0]}, { ${sortedNamedImports[0]} } from '${moduleName}';`
-                );
-            }
-        }
-        // Plusieurs imports nommés -> multiligne avec indentation de 4 espaces
-        else {
-            if (isTypeImport) {
-                statements.push(`import type ${importNames[0]}, {
-    ${sortedNamedImports.join(',\n    ')}
-} from '${moduleName}';`);
-            } else {
-                statements.push(`import ${importNames[0]}, {
-    ${sortedNamedImports.join(',\n    ')}
-} from '${moduleName}';`);
-            }
-        }
+        statements.push(formatDefaultAndNamedImports(
+            importNames[0], 
+            sortedNamedImports, 
+            moduleName, 
+            isTypeImport
+        ));
     }
     // Uniquement des imports nommés
     else if (namedImports.length > 0) {
-        // Un seul import nommé -> une ligne
-        if (sortedNamedImports.length === 1) {
-            if (isTypeImport) {
-                statements.push(
-                    `import type { ${sortedNamedImports[0]} } from '${moduleName}';`
-                );
-            } else {
-                statements.push(
-                    `import { ${sortedNamedImports[0]} } from '${moduleName}';`
-                );
-            }
-        }
-        // Plusieurs imports nommés -> multiligne avec indentation de 4 espaces
-        else {
-            if (isTypeImport) {
-                statements.push(`import type {
-    ${sortedNamedImports.join(',\n    ')}
-} from '${moduleName}';`);
-            } else {
-                statements.push(`import {
-    ${sortedNamedImports.join(',\n    ')}
-} from '${moduleName}';`);
-            }
-        }
+        statements.push(formatNamedImports(sortedNamedImports, moduleName, isTypeImport));
     }
 }
 
@@ -417,11 +440,13 @@ function groupImportsOptimized(
     return result;
 }
 
+// Refactoring: Déplacer la configuration vers les paramètres de fonction
 function generateFormattedImportsOptimized(
-    groupedImports: Map<string, FormattedImport[]>
+    groupedImports: Map<string, FormattedImport[]>,
+    config: FormatterConfig = DEFAULT_FORMATTER_CONFIG
 ): string {
     // Ordre défini des groupes d'imports
-    const configGroups = [...IMPORT_GROUPS]
+    const configGroups = [...config.importGroups]
         .sort((a, b) => a.order - b.order)
         .map((group) => group.name);
 
@@ -453,29 +478,22 @@ function generateFormattedImportsOptimized(
         }
 
         // Fallback sur l'ordre des groupes dans la configuration
-        const groupA = IMPORT_GROUPS.find((g) => g.name === a[0]);
-        const groupB = IMPORT_GROUPS.find((g) => g.name === b[0]);
+        const groupA = config.importGroups.find((g) => g.name === a[0]);
+        const groupB = config.importGroups.find((g) => g.name === b[0]);
         return (groupA?.order || 999) - (groupB?.order || 999);
     });
 
-    const formattedGroups: Array<{
-        groupName: string;
-        commentLine: string;
-        importLines: string[];
-    }> = [];
+    const formattedGroups: FormattedImportGroup[] = [];
 
     for (const [groupName, imports] of groups) {
         if (imports.length === 0) {
             continue;
         }
 
-        // Utiliser directement le groupName normalisé pour le commentaire
-        const commentLine = `// ${groupName}`;
-
-        const groupResult = {
+        const groupResult: FormattedImportGroup = {
             groupName,
-            commentLine: commentLine,
-            importLines: [] as string[],
+            commentLine: `// ${groupName}`,
+            importLines: [],
         };
 
         const sortedImports = sortImportsInGroup(imports);
@@ -489,21 +507,32 @@ function generateFormattedImportsOptimized(
         formattedGroups.push(groupResult);
     }
 
-    // Utiliser la fonction d'alignement par section
-    const alignedLines = alignImportsBySection(formattedGroups);
+    // Utiliser la fonction d'alignement par section avec la configuration
+    const alignedLines = alignImportsBySection(formattedGroups, config);
 
     return alignedLines.join('\n');
 }
 
-function findAllImportsRange(text: string): { start: number; end: number } {
+// Refactoring: Extraction de la détection des imports pour réutilisation
+function hasImportCharacteristics(line: string, config: FormatterConfig): boolean {
+    const trimmedLine = line.trim();
+    return trimmedLine.startsWith('import') || 
+           config.regexPatterns.importFragment.test(trimmedLine) || 
+           trimmedLine.includes('from') ||
+           (trimmedLine.startsWith('{') && trimmedLine.includes('}')) ||
+           trimmedLine.match(/^[A-Za-z0-9_]+,$/) !== null;
+}
+
+// Refactoring: Utilisation de la configuration dans les fonctions d'analyse
+function findAllImportsRange(text: string, config: FormatterConfig = DEFAULT_FORMATTER_CONFIG): { start: number; end: number } {
     // Regex pour trouver les lignes d'import
-    const importRegex = /^\s*import\s+.*?(?:from\s+['"][^'"]+['"])?\s*;?.*$/gm;
+    const importRegex = config.regexPatterns.importLine;
     
     // Regex pour trouver les commentaires de section d'imports
-    const sectionCommentRegex = /^\s*\/\/\s*(?:Misc|DS|@app\/.*|@core|@library|Utils|.*\b(?:misc|ds|dossier|core|library|utils)\b.*)\s*$/gim;
+    const sectionCommentRegex = config.regexPatterns.sectionComment;
 
     // Regex pour trouver les lignes qui semblent être des fragments d'import
-    const possibleImportFragmentRegex = /^\s*([a-zA-Z0-9_]+,|[{}],?|\s*[a-zA-Z0-9_]+,?|\s*[a-zA-Z0-9_]+\s+from|\s*from|^[,}]\s*)$/;
+    const possibleImportFragmentRegex = config.regexPatterns.importFragment;
 
     let firstStart = text.length;
     let lastEnd = 0;
@@ -545,15 +574,12 @@ function findAllImportsRange(text: string): { start: number; end: number } {
         const isEmptyLine = trimmedLine === '';
         const isImportFragmentLine = possibleImportFragmentRegex.test(trimmedLine);
 
-        // Vérifier si cette ligne ressemble à un fragment d'import orphelin
+        // Utilisation de la fonction hasImportCharacteristics pour la détection des fragments
         const isOrphanedFragment =
             !isImportLine &&
             !isCommentLine &&
             !isEmptyLine &&
-            (isImportFragmentLine ||
-                trimmedLine.includes('from') ||
-                (trimmedLine.startsWith('{') && trimmedLine.includes('}')) ||
-                trimmedLine.match(/^[A-Za-z0-9_]+,$/) !== null);
+            hasImportCharacteristics(line, config);
 
         if (isOrphanedFragment) {
             orphanedFragments.push(currentPos);
@@ -605,7 +631,7 @@ function findAllImportsRange(text: string): { start: number; end: number } {
     }
 
     // Rechercher les fragments de commentaires qui pourraient faire partie de la section d'imports
-    const commentFragments = findCommentFragments(text);
+    const commentFragments = findCommentFragments(text, config);
     for (const fragment of commentFragments) {
         const isNearImportSection =
             Math.abs(fragment.start - sectionEnd) < 200 ||
@@ -626,7 +652,7 @@ function findAllImportsRange(text: string): { start: number; end: number } {
 
             for (const line of lines) {
                 linePos += line.length + 1;
-                if (possibleImportFragmentRegex.test(line.trim()) || line.trim().includes('from')) {
+                if (hasImportCharacteristics(line, config)) {
                     fragmentEnd = linePos;
                 } else if (line.trim() !== '' && !line.trim().startsWith('//')) {
                     break;
@@ -641,7 +667,8 @@ function findAllImportsRange(text: string): { start: number; end: number } {
 }
 
 function findCommentFragments(
-    text: string
+    text: string,
+    config: FormatterConfig
 ): Array<{ start: number; end: number }> {
     const fragments: Array<{ start: number; end: number }> = [];
     const lines = text.split('\n');
@@ -652,19 +679,15 @@ function findCommentFragments(
         const lineLength = line.length + 1;
 
         const isPossibleCommentFragment =
-            /^\s*[a-z]{1,5}\s*$/.test(line) ||
-            /^\s*\/?\s*[A-Z][a-z]+\s*$/.test(line) ||
-            (line.trim().length < 5 && /^\s*\/+\s*$/.test(line));
+            config.regexPatterns.possibleCommentFragment.test(line);
 
         if (isPossibleCommentFragment) {
             const prevLine = i > 0 ? lines[i - 1] : '';
             const nextLine = i < lines.length - 1 ? lines[i + 1] : '';
 
             const isNearImport =
-                prevLine.includes('import') ||
-                nextLine.includes('import') ||
-                prevLine.includes('from') ||
-                nextLine.includes('from');
+                hasImportCharacteristics(prevLine, config) ||
+                hasImportCharacteristics(nextLine, config);
 
             if (isNearImport) {
                 fragments.push({
@@ -680,9 +703,12 @@ function findCommentFragments(
     return fragments;
 }
 
-export function formatImports(sourceText: string): string {
+export function formatImports(
+    sourceText: string, 
+    config: FormatterConfig = DEFAULT_FORMATTER_CONFIG
+): string {
     // Trouver d'abord la plage complète des imports, y compris les fragments orphelins
-    const fullImportRange = findAllImportsRange(sourceText);
+    const fullImportRange = findAllImportsRange(sourceText, config);
 
     // Si aucun import n'est trouvé, retourner le texte source sans modification
     if (fullImportRange.start === fullImportRange.end) {
@@ -696,11 +722,10 @@ export function formatImports(sourceText: string): string {
     );
 
     // Capturer également les fragments orphelins qui pourraient ne pas être détectés comme imports
-    const orphanedFragmentsRegex = /(?:^\s*from|^\s*[{}]|\s*[a-zA-Z0-9_]+,|\s*[a-zA-Z0-9_]+\s+from)/gm;
-    const orphanedMatches = [...importSectionText.matchAll(orphanedFragmentsRegex)];
+    const orphanedMatches = [...importSectionText.matchAll(config.regexPatterns.orphanedFragments)];
 
     // Nettoyer le texte d'import en supprimant les commentaires non-nécessaires
-    const cleanedSourceText = removeCommentsFromImports(sourceText);
+    const cleanedSourceText = removeCommentsFromImports(sourceText, config);
 
     // Créer un fichier source TypeScript pour l'analyse
     const sourceFile = ts.createSourceFile(
@@ -730,9 +755,9 @@ export function formatImports(sourceText: string): string {
     }
 
     // Analyser et formater les imports
-    const formattedImports = parseImports(importNodes, sourceFile, IMPORT_GROUPS);
+    const formattedImports = parseImports(importNodes, sourceFile, config.importGroups);
     const groupedImports = groupImportsOptimized(formattedImports);
-    const formattedText = generateFormattedImportsOptimized(groupedImports);
+    const formattedText = generateFormattedImportsOptimized(groupedImports, config);
 
     // Remplacer la section d'imports originale par le texte formaté
     return (

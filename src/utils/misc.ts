@@ -1,3 +1,6 @@
+import { FormatterConfig } from "../types";
+
+// Helper : 
 export function sortImportNamesByLength(names: string[]): string[] {
     return [...names].sort((a, b) => {
         // Extract actual name without 'type' keyword for length comparison
@@ -7,4 +10,65 @@ export function sortImportNamesByLength(names: string[]): string[] {
         // Compare lengths (shortest first)
         return aName.length - bName.length;
     });
+}
+
+// Helper : 
+export function getFromIndex(line: string, isMultiline: boolean = false): number {
+    if (isMultiline) {
+        const lines = line.split('\n');
+        const lastLine = lines[lines.length - 1];
+        const fromIndex = lastLine.indexOf('from');
+        return fromIndex > 0 ? fromIndex : -1;
+    } else {
+        const fromIndex = line.indexOf('from');
+        return fromIndex > 0 ? fromIndex : -1;
+    }
+}
+
+// Helper : 
+export function alignFromKeyword(
+    line: string, 
+    fromIndex: number, 
+    maxWidth: number, 
+    spacingWidth: number
+): string {
+    if (fromIndex <= 0) return line;
+    
+    const padding = ' '.repeat(maxWidth - fromIndex + spacingWidth);
+    
+    if (line.includes('\n')) {
+        const lines = line.split('\n');
+        const lastLineIndex = lines.length - 1;
+        const lastLine = lines[lastLineIndex];
+        
+        lines[lastLineIndex] = 
+            lastLine.substring(0, fromIndex) +
+            padding +
+            'from' +
+            lastLine.substring(fromIndex + 4);
+        
+        return lines.join('\n');
+    } else {
+        return (
+            line.substring(0, fromIndex) +
+            padding +
+            'from' +
+            line.substring(fromIndex + 4)
+        );
+    }
+}
+
+// Helper: Vérifie si une ligne est vide
+export function isEmptyLine(line: string): boolean {
+    return line.trim() === '';
+}
+
+// Helper: Vérifie si une ligne est un commentaire
+export function isCommentLine(line: string): boolean {
+    return line.trim().startsWith('//');
+}
+
+// Helper: Vérifie si une ligne est un commentaire de section
+export function isSectionComment(line: string, config: FormatterConfig): boolean {
+    return config.regexPatterns.sectionCommentPattern.test(line);
 }

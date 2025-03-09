@@ -27,3 +27,23 @@ export interface FormattedImport {
     isDefaultImport: boolean;
     hasNamedImports: boolean;
 }
+
+export interface FormattedImportGroup {
+    groupName: string;
+    commentLine: string;
+    importLines: string[];
+}
+
+export interface FormatterConfig {
+    importGroups: ImportGroup[];
+    alignmentSpacing: number;
+    regexPatterns: {
+        importLine: RegExp;
+        sectionComment: RegExp;
+        importFragment: RegExp;
+        sectionCommentPattern: RegExp;
+        anyComment: RegExp;
+        orphanedFragments: RegExp;
+        possibleCommentFragment: RegExp;
+    };
+}

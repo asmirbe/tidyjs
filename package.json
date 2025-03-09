@@ -80,13 +80,6 @@
           "type": "boolean",
           "default": true,
           "description": "Preserve inline comments within imports during formatting"
-        },
-        "importFormatter.performance.maxImportLines": {
-          "type": "number",
-          "default": 100,
-          "minimum": 10,
-          "maximum": 1000,
-          "description": "Maximum number of lines to scan for imports (improves performance with large files)"
         }
       }
     }
@@ -118,8 +111,5 @@
     "eslint": "^9.21.0",
     "npm-run-all": "^4.1.5",
     "typescript": "^5.7.3"
-  },
-  "dependencies": {
-    "glob": "^11.0.1"
   }
 }

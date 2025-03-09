@@ -1,10 +1,12 @@
 import * as ts from 'typescript';
-import { logDebug, logError } from './utils/log';
-import { FormattedImport } from './types';
-import { limitTextToImportArea } from './utils/performance';
-import { detectDynamicImports, isInDynamicImport, filterImportsInsideDynamicImports } from './utils/dynamic-imports';
-import { ALIGNMENT_SPACING, DEFAULT_IMPORT_GROUPS } from './utils/config';
+import { logDebug } from './utils/log';
+import { DEFAULT_IMPORT_GROUPS as IMPORTED_IMPORT_GROUPS } from './utils/config';
+import type { FormattedImport } from './types';
 import { sortImportNamesByLength } from './utils/misc';
+import { parseImports } from './parser';
+
+let IMPORT_GROUPS = [...IMPORTED_IMPORT_GROUPS];
+let ALIGNMENT_SPACING = 1; // Valeur par défaut
 
 function alignImportsBySection(formattedGroups: Array<{
     groupName: string;
@@ -130,231 +132,6 @@ function alignImportsBySection(formattedGroups: Array<{
     cleanedLines.push('');
 
     return cleanedLines;
-}
-
-export function formatImportsWithTsParser(sourceText: string): string {
-    // Trouver d'abord la plage complète des imports, y compris les fragments orphelins
-    const fullImportRange = findAllImportsRange(sourceText);
-
-    // Si aucun import n'est trouvé, retourner le texte source sans modification
-    if (fullImportRange.start === fullImportRange.end) {
-        return sourceText;
-    }
-
-    // Extraire tout le texte de la section d'imports
-    const importSectionText = sourceText.substring(
-        fullImportRange.start,
-        fullImportRange.end
-    );
-
-    // Détecter les imports dynamiques pour les exclure
-    const dynamicImports = detectDynamicImports(importSectionText);
-
-    // Capturer également les fragments orphelins qui pourraient ne pas être détectés comme imports
-    const orphanedFragmentsRegex = /(?:^\s*from|^\s*[{}]|\s*[a-zA-Z0-9_]+,|\s*[a-zA-Z0-9_]+\s+from)/gm;
-    const orphanedMatches = [...importSectionText.matchAll(orphanedFragmentsRegex)];
-    
-    // Filtrer les fragments qui seraient dans des imports dynamiques
-    const filteredOrphanedMatches = orphanedMatches.filter(match => 
-        !isInDynamicImport(match.index || 0, dynamicImports)
-    );
-
-    // Nettoyer le texte d'import en supprimant les commentaires non-nécessaires
-    const cleanedSourceText = removeCommentsFromImports(importSectionText);
-
-    // Créer un fichier source TypeScript pour l'analyse
-    const sourceFile = ts.createSourceFile(
-        'temp.ts',
-        cleanedSourceText,
-        ts.ScriptTarget.Latest,
-        true
-    );
-
-    // Collecter tous les nœuds d'import
-    const importNodes: ts.ImportDeclaration[] = [];
-    const importRanges: [number, number][] = [];
-
-    function visit(node: ts.Node) {
-        if (ts.isImportDeclaration(node)) {
-            // Vérifier si l'import n'est pas dans un import dynamique
-            const nodeStart = node.getStart(sourceFile);
-            if (!isInDynamicImport(nodeStart, dynamicImports)) {
-                importNodes.push(node);
-                importRanges.push([nodeStart, node.getEnd()]);
-            }
-        }
-        ts.forEachChild(node, visit);
-    }
-
-    visit(sourceFile);
-
-    // Si aucun import valide n'est trouvé, vérifier s'il y a des fragments orphelins
-    if (importNodes.length === 0 && filteredOrphanedMatches.length === 0) {
-        return sourceText;
-    }
-
-    // Analyser et formater les imports
-    const formattedImports = parseImports(importNodes, sourceFile);
-    const groupedImports = groupImportsOptimized(formattedImports);
-    const formattedText = generateFormattedImportsOptimized(groupedImports);
-
-    // Remplacer UNIQUEMENT la section d'imports, pas le reste du texte
-    return sourceText.substring(0, fullImportRange.start) + formattedText + sourceText.substring(fullImportRange.end);
-}
-
-export function formatImports(sourceText: string): string {
-    // 1. Garde contre les entrées vides ou invalides
-    if (!sourceText || sourceText.trim().length === 0) {
-        return sourceText;
-    }
-
-    // 2. Vérifier si le document contient des imports
-    if (!sourceText.includes('import ')) {
-        return sourceText; // Pas d'imports, retourner tel quel
-    }
-
-    // Limite la taille du texte à analyser pour raisons de performance
-    const limitedText = limitTextToImportArea(sourceText);
-
-    // Trouver d'abord la plage complète des imports
-    const importRange = findAllImportsRange(limitedText);
-    
-    // Détecter les imports dynamiques
-    const dynamicImports = detectDynamicImports(sourceText);
-    logDebug(`Nombre d'imports dynamiques détectés: ${dynamicImports.length}`);
-    
-    // Si le texte entier est une section d'imports ou si aucune section d'imports n'est trouvée
-    if (importRange.start === 0 && importRange.end === sourceText.length || 
-        importRange.start === importRange.end) {
-        // Formatage complet
-        const formattedFullText = formatImportsWithTsParser(sourceText);
-        
-        // Vérification de l'intégrité des chemins d'import
-        if (hasInvalidImportPaths(formattedFullText)) {
-            logError("Détection de chemins d'import potentiellement invalides. Désactivation du formatage.");
-            return sourceText; // Retourner le texte original en cas de problème détecté
-        }
-        
-        return formattedFullText;
-    }
-    
-    // Sinon, on traite que la section d'imports tout en préservant le reste du code
-    const importSectionText = sourceText.substring(importRange.start, importRange.end);
-    const formattedImports = formatImportsWithTsParser(importSectionText);
-    
-    // Vérification de l'intégrité des chemins d'import dans la section formatée
-    if (hasInvalidImportPaths(formattedImports)) {
-        logError("Détection de chemins d'import potentiellement invalides. Désactivation du formatage pour cette section.");
-        return sourceText; // Retourner le texte original en cas de problème détecté
-    }
-    
-    // Reconstruire le texte complet en remplaçant uniquement la section d'imports
-    return sourceText.substring(0, importRange.start) + formattedImports + sourceText.substring(importRange.end);
-}
-
-// Fonction pour détecter les chemins d'import potentiellement invalides
-// Fonction améliorée pour détecter les chemins d'import potentiellement invalides
-function hasInvalidImportPaths(text: string): boolean {
-    // Détecte les cas où un chemin d'import est potentiellement coupé
-    // Un chemin valide devrait être entièrement entre guillemets sur une seule ligne
-    // ou entre guillemets qui terminent et commencent sur des lignes adjacentes
-    
-    const lines = text.split('\n');
-    let inImport = false;
-    let pathStarted = false;
-    let previousLineEndsWithQuote = false;
-    
-    for (let i = 0; i < lines.length; i++) {
-        const line = lines[i].trim();
-        
-        // Réinitialiser l'état si on trouve une nouvelle déclaration d'import complète
-        if (line.includes('import ') && line.includes(' from ') && 
-            ((line.includes("';") && line.includes("'")) || 
-             (line.includes('";') && line.includes('"')))) {
-            inImport = false;
-            pathStarted = false;
-            continue;
-        }
-        
-        if (line.includes('import ') && line.includes(' from ')) {
-            inImport = true;
-        }
-        
-        if (inImport) {
-            // Vérifie si cette ligne commence un chemin d'import
-            if (line.includes(' from ')) {
-                const fromIndex = line.indexOf(' from ');
-                const afterFrom = line.substring(fromIndex + 6).trim();
-                
-                // Vérifie si le chemin commence et se termine sur la même ligne
-                if ((afterFrom.startsWith("'") || afterFrom.startsWith('"')) && 
-                    (afterFrom.endsWith("';") || afterFrom.endsWith('";'))) {
-                    // Chemin complet sur une ligne, c'est bon
-                    inImport = false;
-                    pathStarted = false;
-                } 
-                else if ((afterFrom.startsWith("'") || afterFrom.startsWith('"')) && 
-                         !(afterFrom.endsWith("';") || afterFrom.endsWith('";'))) {
-                    // Chemin commencé mais pas terminé
-                    pathStarted = true;
-                    previousLineEndsWithQuote = afterFrom.endsWith("'") || afterFrom.endsWith('"');
-                }
-            }
-            // Si nous sommes au milieu d'un chemin d'import qui continue sur plusieurs lignes
-            else if (pathStarted) {
-                // Cette ligne devrait soit commencer par un guillemet (si la ligne précédente n'en finissait pas par un)
-                // soit contenir le guillemet final
-                const startsWithQuote = line.startsWith("'") || line.startsWith('"');
-                const endsWithQuote = line.endsWith("';") || line.endsWith('";');
-                
-                if (previousLineEndsWithQuote && !startsWithQuote) {
-                    // Si la ligne précédente finissait par un guillemet mais cette ligne ne commence pas par un,
-                    // cela suggère une coupure incorrecte du chemin
-                    return true;
-                }
-                
-                if (endsWithQuote) {
-                    // Chemin terminé
-                    inImport = false;
-                    pathStarted = false;
-                }
-                
-                previousLineEndsWithQuote = line.endsWith("'") || line.endsWith('"');
-            }
-        }
-    }
-    
-    // Vérifier qu'il ne reste pas d'import non terminé
-    return pathStarted;
-}
-
-export function getImportGroup(moduleName: string): string {
-    // Chercher d'abord un match direct dans les groupes configurés
-    const importGroup = DEFAULT_IMPORT_GROUPS.find((group) =>
-        group.regex.test(moduleName)
-    );
-
-    if (importGroup) {
-        return importGroup.name;
-    }
-
-    // Règles de fallback
-    if (moduleName.startsWith('@library')) {
-        return '@library';
-    } else if (moduleName.startsWith('@app/dossier')) {
-        return '@app/dossier';
-    } else if (moduleName.startsWith('@core')) {
-        return '@core';
-    } else if (moduleName.startsWith('yutils')) {
-        return 'Utils';
-    } else if (moduleName === 'ds') {
-        return 'DS';
-    } else if (['react', 'lodash', 'date-fns'].includes(moduleName)) {
-        return 'Misc';
-    }
-
-    // Par défaut, mettre dans Misc
-    return 'Misc';
 }
 
 function removeCommentsFromImports(text: string): string {
@@ -490,114 +267,6 @@ function formatImportItem(
     }
 }
 
-// Updated parseImports function to correctly handle inline type imports
-function parseImports(
-    importNodes: ts.ImportDeclaration[],
-    sourceFile: ts.SourceFile
-): FormattedImport[] {
-    const result: FormattedImport[] = [];
-
-    for (const node of importNodes) {
-        const moduleSpecifier = node.moduleSpecifier as ts.StringLiteral;
-        const moduleName = moduleSpecifier.text;
-
-        // Utiliser uniquement getImportGroup pour déterminer le groupe
-        const groupName = getImportGroup(moduleName);
-
-        // Trouver l'objet ImportGroup correspondant
-        let importGroup = DEFAULT_IMPORT_GROUPS.find(g => g.name === groupName);
-
-        // Si le groupe n'est pas dans la liste par défaut, créer un groupe Misc
-        if (!importGroup) {
-            importGroup = { name: 'Misc', regex: /.*/, order: 0 };
-        }
-
-        let importNames: string[] = [];
-        let typeImportNames: string[] = [];
-        let isTypeImport = false;
-        let isDefaultImport = false;
-        let hasNamedImports = false;
-
-        if (node.importClause) {
-            // Traiter l'import par défaut
-            if (node.importClause.name) {
-                isDefaultImport = true;
-                importNames.push(node.importClause.name.text);
-            }
-
-            isTypeImport = !!node.importClause.isTypeOnly;
-
-            // Traiter les imports nommés
-            if (node.importClause.namedBindings) {
-                if (ts.isNamedImports(node.importClause.namedBindings)) {
-                    // Analyser les imports nommés pour identifier les types inline
-                    for (const element of node.importClause.namedBindings.elements) {
-                        const sourceText = sourceFile.text.substring(
-                            element.getStart(sourceFile),
-                            element.getEnd()
-                        );
-
-                        // Détecter les imports de type inline (comme "type FC")
-                        const isInlineType = sourceText.startsWith('type ');
-
-                        if (isInlineType) {
-                            // Extraire le nom du type sans le mot-clé "type"
-                            const typeName = element.name.text;
-                            typeImportNames.push(typeName);
-                        } else {
-                            // Import normal
-                            if (element.propertyName) {
-                                importNames.push(`${element.propertyName.text} as ${element.name.text}`);
-                            } else {
-                                importNames.push(element.name.text);
-                            }
-                        }
-                    }
-
-                    hasNamedImports = importNames.length > (isDefaultImport ? 1 : 0);
-                } else if (ts.isNamespaceImport(node.importClause.namedBindings)) {
-                    importNames.push(`* as ${node.importClause.namedBindings.name.text}`);
-                    hasNamedImports = true;
-                }
-            }
-        }
-
-        // Obtenir le texte original de la déclaration d'import
-        const statement = sourceFile.text.substring(
-            node.getStart(sourceFile),
-            node.getEnd()
-        );
-
-        // Ajouter l'import principal (sans les types inline)
-        if (importNames.length > 0) {
-            result.push({
-                statement,
-                group: importGroup,
-                moduleName,
-                importNames,
-                isTypeImport,
-                isDefaultImport,
-                hasNamedImports
-            });
-        }
-
-        // Ajouter un import de type séparé pour chaque type inline
-        if (typeImportNames.length > 0) {
-            result.push({
-                statement: `import type { ${typeImportNames.join(', ')} } from '${moduleName}';`,
-                group: importGroup,
-                moduleName,
-                importNames: typeImportNames,
-                isTypeImport: true,
-                isDefaultImport: false,
-                hasNamedImports: true
-            });
-        }
-    }
-
-    return result;
-}
-
 function sortImportsInGroup(imports: FormattedImport[]): FormattedImport[] {
     return imports.sort((a, b) => {
         // Priorité spéciale pour React dans le groupe Misc
@@ -648,12 +317,11 @@ function groupImportsOptimized(
 ): Map<string, FormattedImport[]> {
     const groupedImports = new Map<string, Map<string, FormattedImport>>();
 
-    // Séparer les imports normaux des imports de type
-    const regularImports = imports.filter(imp => !imp.isTypeImport);
-    const typeImports = imports.filter(imp => imp.isTypeImport);
-    
-    // Traiter les imports normaux
-    for (const importItem of regularImports) {
+    // Map spéciale pour suivre les imports de type par module
+    const typeImportsByModule = new Map<string, Set<string>>();
+
+    // Ne pas séparer les types dans un groupe à part
+    for (const importItem of imports) {
         const groupName = importItem.group.name;
 
         if (!groupedImports.has(groupName)) {
@@ -663,7 +331,39 @@ function groupImportsOptimized(
         const moduleMap = groupedImports.get(groupName)!;
         const { moduleName } = importItem;
 
+        // Cas spécial pour les imports de type
+        if (importItem.isTypeImport) {
+            // Clé pour les imports de type
+            const typeKey = `${moduleName}_TYPE_`;
+
+            // Garder trace des noms de type pour ce module
+            if (!typeImportsByModule.has(moduleName)) {
+                typeImportsByModule.set(moduleName, new Set<string>());
+            }
+
+            // Ajouter les noms de type à l'ensemble
+            const typeNames = typeImportsByModule.get(moduleName)!;
+            importItem.importNames.forEach(name => typeNames.add(name));
+
+            // Si un import de type pour ce module existe déjà, le mettre à jour
+            if (moduleMap.has(typeKey)) {
+                const existingTypeImport = moduleMap.get(typeKey)!;
+                existingTypeImport.importNames = Array.from(typeNames);
+            } else {
+                // Sinon, créer un nouvel import de type
+                moduleMap.set(typeKey, {
+                    ...importItem,
+                    importNames: Array.from(typeNames),
+                    isTypeImport: true,
+                    isDefaultImport: false,
+                    hasNamedImports: true
+                });
+            }
+            continue;
+        }
+
         // Cas standard pour les imports non-type
+        // CORRECTION: Utiliser une clé qui distingue les imports par défaut
         const mapKey = importItem.isDefaultImport ?
             `${moduleName}_DEFAULT_` :
             `${moduleName}_NAMED_`;
@@ -679,6 +379,9 @@ function groupImportsOptimized(
 
             existingImport.importNames = Array.from(mergedNames);
 
+            // CORRECTION: Ne pas modifier isDefaultImport et hasNamedImports automatiquement
+            // mais recalculer hasNamedImports en fonction du nombre d'imports après la fusion
+
             // Si c'est un import par défaut, le premier élément est le nom de l'import par défaut
             const namedImportCount = existingImport.isDefaultImport ?
                 existingImport.importNames.length - 1 :
@@ -688,6 +391,7 @@ function groupImportsOptimized(
             existingImport.hasNamedImports = namedImportCount > 0;
 
         } else {
+            // CORRECTION: Vérifier que hasNamedImports est correct avant d'ajouter l'import
             if (importItem.isDefaultImport) {
                 // Pour un import par défaut, hasNamedImports est vrai s'il y a plus d'un nom
                 // (le premier étant l'import par défaut)
@@ -703,22 +407,6 @@ function groupImportsOptimized(
         }
     }
 
-    // Traiter les imports de type - maintenant ils sont toujours ajoutés comme des entrées indépendantes
-    for (const typeImport of typeImports) {
-        const groupName = typeImport.group.name;
-
-        if (!groupedImports.has(groupName)) {
-            groupedImports.set(groupName, new Map<string, FormattedImport>());
-        }
-
-        const moduleMap = groupedImports.get(groupName)!;
-        // Créer une clé unique pour cet import de type afin d'éviter la fusion avec d'autres imports
-        const typeKey = `${typeImport.moduleName}_TYPE_${Math.random().toString(36).substring(2, 10)}`;
-        
-        moduleMap.set(typeKey, { ...typeImport });
-    }
-
-    // Convertir la structure en Map<string, FormattedImport[]>
     const result = new Map<string, FormattedImport[]>();
     for (const [groupName, moduleMap] of groupedImports.entries()) {
         if (moduleMap.size > 0) {
@@ -733,7 +421,7 @@ function generateFormattedImportsOptimized(
     groupedImports: Map<string, FormattedImport[]>
 ): string {
     // Ordre défini des groupes d'imports
-    const configGroups = [...DEFAULT_IMPORT_GROUPS]
+    const configGroups = [...IMPORT_GROUPS]
         .sort((a, b) => a.order - b.order)
         .map((group) => group.name);
 
@@ -765,8 +453,8 @@ function generateFormattedImportsOptimized(
         }
 
         // Fallback sur l'ordre des groupes dans la configuration
-        const groupA = DEFAULT_IMPORT_GROUPS.find((g) => g.name === a[0]);
-        const groupB = DEFAULT_IMPORT_GROUPS.find((g) => g.name === b[0]);
+        const groupA = IMPORT_GROUPS.find((g) => g.name === a[0]);
+        const groupB = IMPORT_GROUPS.find((g) => g.name === b[0]);
         return (groupA?.order || 999) - (groupB?.order || 999);
     });
 
@@ -807,7 +495,7 @@ function generateFormattedImportsOptimized(
     return alignedLines.join('\n');
 }
 
-export function findAllImportsRange(text: string): { start: number; end: number } {
+function findAllImportsRange(text: string): { start: number; end: number } {
     // Regex pour trouver les lignes d'import
     const importRegex = /^\s*import\s+.*?(?:from\s+['"][^'"]+['"])?\s*;?.*$/gm;
     
@@ -819,22 +507,10 @@ export function findAllImportsRange(text: string): { start: number; end: number 
 
     let firstStart = text.length;
     let lastEnd = 0;
-    
-    // Détecter les imports dynamiques pour les exclure
-    const dynamicImports = detectDynamicImports(text);
-    
-    // Récupérer toutes les correspondances d'imports standards
-    const importMatches: RegExpExecArray[] = [];
     let match;
+
+    // Trouver tous les imports et commentaires de section
     while ((match = importRegex.exec(text)) !== null) {
-        importMatches.push(match);
-    }
-    
-    // Filtrer les imports standards qui seraient dans des chaînes d'imports dynamiques
-    const filteredImports = filterImportsInsideDynamicImports(text, importMatches);
-    
-    // Traiter les imports filtrés
-    for (const match of filteredImports) {
         firstStart = Math.min(firstStart, match.index);
         lastEnd = Math.max(lastEnd, match.index + match[0].length);
     }
@@ -858,8 +534,6 @@ export function findAllImportsRange(text: string): { start: number; end: number 
 
     // Rechercher les fragments d'imports orphelins et les commentaires de section
     const orphanedFragments: number[] = [];
-    let lastNonImportLinePosition = 0;
-    let foundNonImportAfterImport = false;
 
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
@@ -870,15 +544,6 @@ export function findAllImportsRange(text: string): { start: number; end: number 
         const isCommentLine = trimmedLine.startsWith('//');
         const isEmptyLine = trimmedLine === '';
         const isImportFragmentLine = possibleImportFragmentRegex.test(trimmedLine);
-        
-        // Vérifier si cette ligne contient un import dynamique
-        const isDynamicImportLine = isImportLine && trimmedLine.includes('import(');
-        
-        // Ignorer les lignes d'imports dynamiques
-        if (isDynamicImportLine) {
-            currentPos += lineLength;
-            continue;
-        }
 
         // Vérifier si cette ligne ressemble à un fragment d'import orphelin
         const isOrphanedFragment =
@@ -891,25 +556,15 @@ export function findAllImportsRange(text: string): { start: number; end: number 
                 trimmedLine.match(/^[A-Za-z0-9_]+,$/) !== null);
 
         if (isOrphanedFragment) {
-            // Vérifier si ce fragment n'est pas dans un import dynamique
-            if (!dynamicImports.some(() => 
-                isInDynamicImport(currentPos, dynamicImports)
-            )) {
-                orphanedFragments.push(currentPos);
-                sectionEnd = Math.max(sectionEnd, currentPos + lineLength);
-            }
+            orphanedFragments.push(currentPos);
+            sectionEnd = Math.max(sectionEnd, currentPos + lineLength);
         }
 
-        // Si c'est un commentaire de section ou une ligne d'import statique, inclure dans la section
-        if ((isImportLine && !isDynamicImportLine) || 
-            (isCommentLine && /(?:misc|ds|dossier|core|library|utils)/i.test(trimmedLine))) {
-            
-            // Vérifier que l'import statique n'est pas à l'intérieur d'un import dynamique
-            if (!isImportLine || !isInDynamicImport(currentPos, dynamicImports)) {
-                inImportSection = true;
-                sectionStart = Math.min(sectionStart, currentPos);
-                sectionEnd = Math.max(sectionEnd, currentPos + lineLength);
-            }
+        // Si c'est un commentaire de section ou une ligne d'import, inclure dans la section
+        if (isImportLine || (isCommentLine && /(?:misc|ds|dossier|core|library|utils)/i.test(trimmedLine))) {
+            inImportSection = true;
+            sectionStart = Math.min(sectionStart, currentPos);
+            sectionEnd = Math.max(sectionEnd, currentPos + lineLength);
         } else if (
             inImportSection &&
             (isCommentLine || isEmptyLine || isImportFragmentLine)
@@ -922,18 +577,12 @@ export function findAllImportsRange(text: string): { start: number; end: number 
             !isImportFragmentLine &&
             !isOrphanedFragment
         ) {
-            // Marquer la position de la première ligne qui n'est pas un import après la section d'imports
-            if (!foundNonImportAfterImport) {
-                lastNonImportLinePosition = currentPos;
-                foundNonImportAfterImport = true;
-            }
-
             const nextLine = i + 1 < lines.length ? lines[i + 1].trim() : '';
-            const nextLineIsImport = nextLine.startsWith('import') && !nextLine.includes('import(');
+            const nextLineIsImport = nextLine.startsWith('import');
             const nextLineIsComment = nextLine.startsWith('//');
 
             if (nextLineIsImport || nextLineIsComment) {
-                sectionEnd = Math.max(sectionEnd, currentPos);
+                sectionEnd = Math.max(sectionEnd, currentPos + lineLength);
             } else {
                 // Vérifier si les prochaines lignes contiennent des fragments d'import
                 let fragmentFound = false;
@@ -945,7 +594,7 @@ export function findAllImportsRange(text: string): { start: number; end: number 
                 }
 
                 if (fragmentFound) {
-                    sectionEnd = Math.max(sectionEnd, currentPos);
+                    sectionEnd = Math.max(sectionEnd, currentPos + lineLength);
                 } else {
                     inImportSection = false;
                 }
@@ -953,24 +602,6 @@ export function findAllImportsRange(text: string): { start: number; end: number 
         }
 
         currentPos += lineLength;
-    }
-    
-    // Si on a trouvé du code après les imports, on s'assure de ne pas l'inclure dans la section d'imports
-    if (foundNonImportAfterImport && lastNonImportLinePosition < sectionEnd) {
-        sectionEnd = lastNonImportLinePosition;
-    }
-
-    // Rechercher le premier type ou const ou let ou function après les imports
-    const codeStartPattern = /^\s*(type|interface|const|let|var|function|class|enum|export)\s+/m;
-    const afterImports = text.substring(lastEnd);
-    const codeStartMatch = codeStartPattern.exec(afterImports);
-    
-    if (codeStartMatch && codeStartMatch.index < 200) {  // Limiter la recherche à 200 caractères après les imports
-        // Ajuster la fin de la section pour arrêter avant la déclaration de code
-        const codeStartPos = lastEnd + codeStartMatch.index;
-        if (codeStartPos < sectionEnd) {
-            sectionEnd = codeStartPos;
-        }
     }
 
     // Rechercher les fragments de commentaires qui pourraient faire partie de la section d'imports
@@ -1004,17 +635,6 @@ export function findAllImportsRange(text: string): { start: number; end: number 
 
             sectionEnd = Math.max(sectionEnd, fragmentEnd);
         }
-    }
-
-    // Rechercher une ligne vide après les imports qui marquerait la fin de la section
-    const emptyLineAfterImports = /\n\s*\n/g;
-    emptyLineAfterImports.lastIndex = lastEnd;
-    const emptyLineMatch = emptyLineAfterImports.exec(text);
-    
-    if (emptyLineMatch && emptyLineMatch.index < sectionEnd) {
-        // Si on trouve une ligne vide après le dernier import mais avant notre estimation
-        // de fin de section, on utilise cette ligne vide comme séparateur
-        sectionEnd = emptyLineMatch.index + 1; // +1 pour inclure le premier saut de ligne
     }
 
     return { start: sectionStart, end: sectionEnd };
@@ -1058,4 +678,66 @@ function findCommentFragments(
     }
 
     return fragments;
+}
+
+export function formatImports(sourceText: string): string {
+    // Trouver d'abord la plage complète des imports, y compris les fragments orphelins
+    const fullImportRange = findAllImportsRange(sourceText);
+
+    // Si aucun import n'est trouvé, retourner le texte source sans modification
+    if (fullImportRange.start === fullImportRange.end) {
+        return sourceText;
+    }
+
+    // Extraire tout le texte de la section d'imports
+    const importSectionText = sourceText.substring(
+        fullImportRange.start,
+        fullImportRange.end
+    );
+
+    // Capturer également les fragments orphelins qui pourraient ne pas être détectés comme imports
+    const orphanedFragmentsRegex = /(?:^\s*from|^\s*[{}]|\s*[a-zA-Z0-9_]+,|\s*[a-zA-Z0-9_]+\s+from)/gm;
+    const orphanedMatches = [...importSectionText.matchAll(orphanedFragmentsRegex)];
+
+    // Nettoyer le texte d'import en supprimant les commentaires non-nécessaires
+    const cleanedSourceText = removeCommentsFromImports(sourceText);
+
+    // Créer un fichier source TypeScript pour l'analyse
+    const sourceFile = ts.createSourceFile(
+        'temp.ts',
+        cleanedSourceText,
+        ts.ScriptTarget.Latest,
+        true
+    );
+
+    // Collecter tous les nœuds d'import
+    const importNodes: ts.ImportDeclaration[] = [];
+    const importRanges: [number, number][] = [];
+
+    function visit(node: ts.Node) {
+        if (ts.isImportDeclaration(node)) {
+            importNodes.push(node);
+            importRanges.push([node.getStart(sourceFile), node.getEnd()]);
+        }
+        ts.forEachChild(node, visit);
+    }
+
+    visit(sourceFile);
+
+    // Si aucun import valide n'est trouvé, vérifier s'il y a des fragments orphelins
+    if (importNodes.length === 0 && orphanedMatches.length === 0) {
+        return sourceText;
+    }
+
+    // Analyser et formater les imports
+    const formattedImports = parseImports(importNodes, sourceFile, IMPORT_GROUPS);
+    const groupedImports = groupImportsOptimized(formattedImports);
+    const formattedText = generateFormattedImportsOptimized(groupedImports);
+
+    // Remplacer la section d'imports originale par le texte formaté
+    return (
+        sourceText.substring(0, fullImportRange.start) +
+        formattedText +
+        sourceText.substring(fullImportRange.end)
+    );
 }

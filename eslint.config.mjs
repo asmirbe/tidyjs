@@ -14,8 +14,13 @@ export default [{
         sourceType: "module",
     },
 
+    ignores: [
+        // for non-global ignores a full glob pattern is required
+        'test/**/*',
+    ],
+
     rules: {
-        "no-unused-vars": "error",
+        "no-unused-vars": [2, {"vars": "local", "args": "after-used"}],
         eqeqeq: "warn",
         "no-throw-literal": "warn",
         semi: "warn",

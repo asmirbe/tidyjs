@@ -1,6 +1,6 @@
 import { FormatterConfig } from "../types";
 
-// Helper : 
+// Helper : Function to sort import names by length
 export function sortImportNamesByLength(names: string[]): string[] {
     return [...names].sort((a, b) => {
         // Extract actual name without 'type' keyword for length comparison
@@ -12,7 +12,7 @@ export function sortImportNamesByLength(names: string[]): string[] {
     });
 }
 
-// Helper : 
+// Helper function to get the index of the 'from' keyword in an import statement
 export function getFromIndex(line: string, isMultiline: boolean = false): number {
     if (isMultiline) {
         const lines = line.split('\n');
@@ -25,7 +25,7 @@ export function getFromIndex(line: string, isMultiline: boolean = false): number
     }
 }
 
-// Helper : 
+// Helper : Function to align imports
 export function alignFromKeyword(
     line: string, 
     fromIndex: number, 
@@ -71,4 +71,9 @@ export function isCommentLine(line: string): boolean {
 // Helper: Vérifie si une ligne est un commentaire de section
 export function isSectionComment(line: string, config: FormatterConfig): boolean {
     return config.regexPatterns.sectionCommentPattern.test(line);
+}
+
+// Helper: Vérifie si une ligne est une section de commentaire
+export function formatSimpleImport(moduleName: string): string {
+    return `import '${moduleName}';`;
 }

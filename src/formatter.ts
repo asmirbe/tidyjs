@@ -3,7 +3,7 @@ import { logDebug } from './utils/log';
 import { parseImports } from './parser';
 import { DEFAULT_IMPORT_GROUPS as IMPORTED_IMPORT_GROUPS } from './utils/config';
 import { alignFromKeyword, formatSimpleImport, getFromIndex, isCommentLine, isEmptyLine, isSectionComment, sortImportNamesByLength } from './utils/misc';
-import type { FormattedImport, FormatterConfig, FormattedImportGroup } from './types';
+import type { FormattedImport, FormatterConfig, FormattedImportGroup, ImportNameWithComment } from './types';
 
 // Configuration par défaut exportée pour permettre les surcharges
 export const DEFAULT_FORMATTER_CONFIG: FormatterConfig = {
@@ -16,6 +16,8 @@ export const DEFAULT_FORMATTER_CONFIG: FormatterConfig = {
             importFragment: /^\s*([a-zA-Z0-9_]+,|[{}],?|\s*[a-zA-Z0-9_]+,?|\s*[a-zA-Z0-9_]+\s+from|\s*from|^[,}]\s*)$/,
             sectionCommentPattern: /^\s*\/\/\s*(?:Misc|DS|@app\/.*|@core|@library|Utils)/,
             anyComment: /^\s*\/\//,
+            typeDeclaration: /^type\s+[A-Za-z0-9_]+(\<.*\>)?\s*=/,
+            codeDeclaration: /^(interface|class|enum|function|const|let|var|export)\s+[A-Za-z0-9_]+/,
             orphanedFragments: /(?:^\s*from|^\s*[{}]|\s*[a-zA-Z0-9_]+,|\s*[a-zA-Z0-9_]+\s+from)/gm,
             possibleCommentFragment: /^\s*[a-z]{1,5}\s*$|^\s*\/?\s*[A-Z][a-z]+\s*$|(^\s*\/+\s*$)/
         };
@@ -133,15 +135,19 @@ function alignImportsBySection(
     return cleanUpLines(resultLines);
 }
 
+// Mise à jour de removeCommentsFromImports pour ne pas supprimer les commentaires internes
 function removeCommentsFromImports(text: string, config: FormatterConfig): string {
-    // Traiter chaque ligne séparément
+    // Ne supprime que les commentaires sur des lignes isolées, pas ceux dans les imports
     return text.split('\n').map(line => {
         // Ne pas supprimer les commentaires de section
         if (isSectionComment(line, config)) {
             return line;
         }
-        // Supprimer les autres commentaires
-        if (config.regexPatterns.anyComment.test(line)) {
+        
+        // Ne supprimer les commentaires que s'ils sont sur une ligne isolée (pas à droite d'un import)
+        if (config.regexPatterns.anyComment.test(line) && 
+            !line.includes('import') && 
+            !line.trim().match(/[a-zA-Z0-9_]+\s*\/\//)) {
             return '';
         }
         return line;
@@ -209,29 +215,55 @@ function formatDefaultImport(defaultName: string, moduleName: string, isTypeImpo
         : `import ${defaultName} from '${moduleName}';`;
 }
 
-function formatNamedImports(namedImports: string[], moduleName: string, isTypeImport: boolean): string {
-    const typePrefix = isTypeImport ? 'type ' : '';
-    
-    return namedImports.length === 1
-        ? `import ${typePrefix}{ ${namedImports[0]} } from '${moduleName}';`
-        : `import ${typePrefix}{
-    ${namedImports.join(',\n    ')}
-} from '${moduleName}';`;
-}
-
-function formatDefaultAndNamedImports(
-    defaultName: string, 
-    namedImports: string[], 
+// Modifier la fonction formatNamedImports pour gérer les commentaires
+function formatNamedImports(
+    namedImports: (string | ImportNameWithComment)[], 
     moduleName: string, 
     isTypeImport: boolean
 ): string {
     const typePrefix = isTypeImport ? 'type ' : '';
     
-    return namedImports.length === 1
-        ? `import ${typePrefix}${defaultName}, { ${namedImports[0]} } from '${moduleName}';`
-        : `import ${typePrefix}${defaultName}, {
-    ${namedImports.join(',\n    ')}
+    // Formatter les imports en préservant les commentaires
+    const formattedItems = namedImports.map(item => {
+        if (typeof item === 'string') {
+            return item;
+        }
+        return item.comment ? `${item.name} ${item.comment}` : item.name;
+    });
+    
+    if (formattedItems.length === 1) {
+        return `import ${typePrefix}{ ${formattedItems[0]} } from '${moduleName}';`;
+    } else {
+        return `import ${typePrefix}{
+    ${formattedItems.join(',\n    ')}
 } from '${moduleName}';`;
+    }
+}
+
+// Modifier formatDefaultAndNamedImports de la même façon
+function formatDefaultAndNamedImports(
+    defaultName: string, 
+    namedImports: (string | ImportNameWithComment)[], 
+    moduleName: string, 
+    isTypeImport: boolean
+): string {
+    const typePrefix = isTypeImport ? 'type ' : '';
+    
+    // Formatter les imports nommés en préservant les commentaires
+    const formattedItems = namedImports.map(item => {
+        if (typeof item === 'string') {
+            return item;
+        }
+        return item.comment ? `${item.name} ${item.comment}` : item.name;
+    });
+    
+    if (formattedItems.length === 1) {
+        return `import ${typePrefix}${defaultName}, { ${formattedItems[0]} } from '${moduleName}';`;
+    } else {
+        return `import ${typePrefix}${defaultName}, {
+    ${formattedItems.join(',\n    ')}
+} from '${moduleName}';`;
+    }
 }
 
 function formatImportItem(
@@ -505,6 +537,17 @@ function generateFormattedImportsOptimized(
 
 function hasImportCharacteristics(line: string, config: FormatterConfig): boolean {
     const trimmedLine = line.trim();
+    
+    // Vérifier explicitement que ce n'est pas une déclaration de type
+    if (trimmedLine.match(/^type\s+[A-Za-z0-9_]+(\<.*\>)?\s*=/)) {
+        return false;
+    }
+    
+    // Vérifier explicitement que ce n'est pas une déclaration d'interface ou de classe
+    if (trimmedLine.match(/^(interface|class|enum)\s+[A-Za-z0-9_]+/)) {
+        return false;
+    }
+    
     return trimmedLine.startsWith('import') || 
            config.regexPatterns.importFragment.test(trimmedLine) || 
            trimmedLine.includes('from') ||
@@ -560,11 +603,24 @@ function findAllImportsRange(text: string, config: FormatterConfig = DEFAULT_FOR
         const lineLength = line.length + 1;
         const trimmedLine = line.trim();
 
+        // Détection améliorée des non-imports
+        const isTypeDeclaration = trimmedLine.match(/^type\s+[A-Za-z0-9_]+(\<.*\>)?\s*=/) !== null;
+        const isInterfaceOrClassDeclaration = trimmedLine.match(/^(interface|class|enum|function|const|let|var)\s+[A-Za-z0-9_]+/) !== null;
+
         const isImportLine = trimmedLine.startsWith('import');
         const isCommentLine = trimmedLine.startsWith('//');
         const isEmptyLine = trimmedLine === '';
         const isImportFragmentLine = possibleImportFragmentRegex.test(trimmedLine);
         const isJSDocComment = trimmedLine.startsWith('/*') || trimmedLine.startsWith('*') || trimmedLine.startsWith('*/');
+
+        // Si on détecte clairement une déclaration de type, d'interface ou de classe, on s'arrête
+        // car on est probablement sorti de la section d'imports
+        if (isTypeDeclaration || isInterfaceOrClassDeclaration) {
+            if (importSectionFound) {
+                inImportSection = false;
+                break;
+            }
+        }
 
         // Utilisation de la fonction hasImportCharacteristics pour la détection des fragments
         const isOrphanedFragment =
@@ -572,6 +628,8 @@ function findAllImportsRange(text: string, config: FormatterConfig = DEFAULT_FOR
             !isCommentLine &&
             !isEmptyLine &&
             !isJSDocComment &&
+            !isTypeDeclaration &&
+            !isInterfaceOrClassDeclaration &&
             hasImportCharacteristics(line, config);
 
         if (isOrphanedFragment) {
@@ -706,10 +764,33 @@ export function formatImports(
         return sourceText;
     }
 
-    // Extraire tout le texte de la section d'imports
+    // Effectuer une vérification supplémentaire pour éviter d'inclure des déclarations de type
+    const importSection = sourceText.substring(fullImportRange.start, fullImportRange.end);
+    const lines = importSection.split('\n');
+    let adjustedEnd = fullImportRange.end;
+
+    // Parcourir la section d'imports à partir de la fin
+    for (let i = lines.length - 1; i >= 0; i--) {
+        const line = lines[i].trim();
+        
+        // Si on trouve une déclaration de type, interface, etc., ajuster la fin
+        if (line.match(/^type\s+[A-Za-z0-9_]+(\<.*\>)?\s*=/) ||
+            line.match(/^(interface|class|enum|function|const|let|var)\s+[A-Za-z0-9_]+/)) {
+            
+            // Calculer la position de cette ligne
+            const lineStart = fullImportRange.start + 
+                lines.slice(0, i).join('\n').length + 
+                (i > 0 ? i : 0); // Ajouter le nombre de caractères '\n'
+                
+            adjustedEnd = lineStart;
+            break;
+        }
+    }
+
+    // Extraire tout le texte de la section d'imports avec la fin ajustée
     const importSectionText = sourceText.substring(
         fullImportRange.start,
-        fullImportRange.end
+        adjustedEnd
     );
 
     // Capturer également les fragments orphelins qui pourraient ne pas être détectés comme imports
@@ -763,6 +844,6 @@ export function formatImports(
     return (
         sourceText.substring(0, fullImportRange.start) +
         formattedText +
-        sourceText.substring(fullImportRange.end)
+        sourceText.substring(adjustedEnd)
     );
 }

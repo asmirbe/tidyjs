@@ -253,6 +253,7 @@ export function formatImports(sourceText: string): string {
 }
 
 // Fonction pour détecter les chemins d'import potentiellement invalides
+// Fonction améliorée pour détecter les chemins d'import potentiellement invalides
 function hasInvalidImportPaths(text: string): boolean {
     // Détecte les cas où un chemin d'import est potentiellement coupé
     // Un chemin valide devrait être entièrement entre guillemets sur une seule ligne
@@ -265,6 +266,15 @@ function hasInvalidImportPaths(text: string): boolean {
     
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i].trim();
+        
+        // Réinitialiser l'état si on trouve une nouvelle déclaration d'import complète
+        if (line.includes('import ') && line.includes(' from ') && 
+            ((line.includes("';") && line.includes("'")) || 
+             (line.includes('";') && line.includes('"')))) {
+            inImport = false;
+            pathStarted = false;
+            continue;
+        }
         
         if (line.includes('import ') && line.includes(' from ')) {
             inImport = true;
@@ -314,7 +324,8 @@ function hasInvalidImportPaths(text: string): boolean {
         }
     }
     
-    return false;
+    // Vérifier qu'il ne reste pas d'import non terminé
+    return pathStarted;
 }
 
 export function getImportGroup(moduleName: string): string {
@@ -479,6 +490,7 @@ function formatImportItem(
     }
 }
 
+// Updated parseImports function to correctly handle inline type imports
 function parseImports(
     importNodes: ts.ImportDeclaration[],
     sourceFile: ts.SourceFile
@@ -504,20 +516,20 @@ function parseImports(
         let typeImportNames: string[] = [];
         let isTypeImport = false;
         let isDefaultImport = false;
-
-        // on le calculera après avoir filtré les imports de type
         let hasNamedImports = false;
 
         if (node.importClause) {
+            // Traiter l'import par défaut
             if (node.importClause.name) {
                 isDefaultImport = true;
                 importNames.push(node.importClause.name.text);
             }
 
+            isTypeImport = !!node.importClause.isTypeOnly;
+
+            // Traiter les imports nommés
             if (node.importClause.namedBindings) {
                 if (ts.isNamedImports(node.importClause.namedBindings)) {
-                    // mais on attend d'avoir séparé les imports normaux des imports de type
-
                     // Analyser les imports nommés pour identifier les types inline
                     for (const element of node.importClause.namedBindings.elements) {
                         const sourceText = sourceFile.text.substring(
@@ -543,21 +555,20 @@ function parseImports(
                     }
 
                     hasNamedImports = importNames.length > (isDefaultImport ? 1 : 0);
-
                 } else if (ts.isNamespaceImport(node.importClause.namedBindings)) {
                     importNames.push(`* as ${node.importClause.namedBindings.name.text}`);
                     hasNamedImports = true;
                 }
             }
-
-            isTypeImport = !!node.importClause.isTypeOnly;
         }
 
+        // Obtenir le texte original de la déclaration d'import
         const statement = sourceFile.text.substring(
             node.getStart(sourceFile),
             node.getEnd()
         );
 
+        // Ajouter l'import principal (sans les types inline)
         if (importNames.length > 0) {
             result.push({
                 statement,
@@ -566,11 +577,11 @@ function parseImports(
                 importNames,
                 isTypeImport,
                 isDefaultImport,
-                hasNamedImports: hasNamedImports
+                hasNamedImports
             });
         }
 
-        // Créer un import de type séparé pour les types inline
+        // Ajouter un import de type séparé pour chaque type inline
         if (typeImportNames.length > 0) {
             result.push({
                 statement: `import type { ${typeImportNames.join(', ')} } from '${moduleName}';`,
@@ -579,7 +590,7 @@ function parseImports(
                 importNames: typeImportNames,
                 isTypeImport: true,
                 isDefaultImport: false,
-                hasNamedImports: true,
+                hasNamedImports: true
             });
         }
     }
@@ -637,11 +648,12 @@ function groupImportsOptimized(
 ): Map<string, FormattedImport[]> {
     const groupedImports = new Map<string, Map<string, FormattedImport>>();
 
-    // Map spéciale pour suivre les imports de type par module
-    const typeImportsByModule = new Map<string, Set<string>>();
-
-    // Ne pas séparer les types dans un groupe à part
-    for (const importItem of imports) {
+    // Séparer les imports normaux des imports de type
+    const regularImports = imports.filter(imp => !imp.isTypeImport);
+    const typeImports = imports.filter(imp => imp.isTypeImport);
+    
+    // Traiter les imports normaux
+    for (const importItem of regularImports) {
         const groupName = importItem.group.name;
 
         if (!groupedImports.has(groupName)) {
@@ -650,37 +662,6 @@ function groupImportsOptimized(
 
         const moduleMap = groupedImports.get(groupName)!;
         const { moduleName } = importItem;
-
-        // Cas spécial pour les imports de type
-        if (importItem.isTypeImport) {
-            // Clé pour les imports de type
-            const typeKey = `${moduleName}_TYPE_`;
-
-            // Garder trace des noms de type pour ce module
-            if (!typeImportsByModule.has(moduleName)) {
-                typeImportsByModule.set(moduleName, new Set<string>());
-            }
-
-            // Ajouter les noms de type à l'ensemble
-            const typeNames = typeImportsByModule.get(moduleName)!;
-            importItem.importNames.forEach(name => typeNames.add(name));
-
-            // Si un import de type pour ce module existe déjà, le mettre à jour
-            if (moduleMap.has(typeKey)) {
-                const existingTypeImport = moduleMap.get(typeKey)!;
-                existingTypeImport.importNames = Array.from(typeNames);
-            } else {
-                // Sinon, créer un nouvel import de type
-                moduleMap.set(typeKey, {
-                    ...importItem,
-                    importNames: Array.from(typeNames),
-                    isTypeImport: true,
-                    isDefaultImport: false,
-                    hasNamedImports: true
-                });
-            }
-            continue;
-        }
 
         // Cas standard pour les imports non-type
         const mapKey = importItem.isDefaultImport ?
@@ -722,6 +703,22 @@ function groupImportsOptimized(
         }
     }
 
+    // Traiter les imports de type - maintenant ils sont toujours ajoutés comme des entrées indépendantes
+    for (const typeImport of typeImports) {
+        const groupName = typeImport.group.name;
+
+        if (!groupedImports.has(groupName)) {
+            groupedImports.set(groupName, new Map<string, FormattedImport>());
+        }
+
+        const moduleMap = groupedImports.get(groupName)!;
+        // Créer une clé unique pour cet import de type afin d'éviter la fusion avec d'autres imports
+        const typeKey = `${typeImport.moduleName}_TYPE_${Math.random().toString(36).substring(2, 10)}`;
+        
+        moduleMap.set(typeKey, { ...typeImport });
+    }
+
+    // Convertir la structure en Map<string, FormattedImport[]>
     const result = new Map<string, FormattedImport[]>();
     for (const [groupName, moduleMap] of groupedImports.entries()) {
         if (moduleMap.size > 0) {

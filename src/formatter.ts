@@ -5,15 +5,6 @@ import type { FormattedImport } from './types';
 import { sortImportNamesByLength } from './utils/misc';
 import { parseImports } from './parser';
 
-// Constants pour améliorer la lisibilité et la maintenabilité
-const COMMENT_PROXIMITY_THRESHOLD = 50; // Distance maximale (en caractères) pour considérer un commentaire comme faisant partie de la section d'imports
-const DEFAULT_SORT_LENGTH = 999; // Valeur par défaut pour le tri des imports sans nom
-
-// Regex compilées une seule fois pour améliorer les performances
-const SECTION_COMMENT_REGEX = /^\s*\/\/\s*(?:Misc|DS|@app\/.*|@core|@library|Utils|.*\b(?:misc|ds|dossier|core|library|utils)\b.*)\s*$/gim;
-const SECTION_COMMENT_PATTERN = /^\s*\/\/\s*(?:Misc|DS|@app\/.*|@core|@library|Utils)/;
-const COMMENT_REGEX = /^\s*\/\//;
-
 let IMPORT_GROUPS = [...IMPORTED_IMPORT_GROUPS];
 let ALIGNMENT_SPACING = 1; // Valeur par défaut
 
@@ -144,44 +135,28 @@ function alignImportsBySection(formattedGroups: Array<{
 }
 
 function removeCommentsFromImports(text: string): string {
-    // Vérifier si le texte est vide ou null
-    if (!text || text.trim().length === 0) {
-        return text;
-    }
+    // Définir un motif pour les commentaires de section
+    const sectionCommentPattern = /^\s*\/\/\s*(?:Misc|DS|@app\/.*|@core|@library|Utils)/;
     
     // Traiter chaque ligne séparément
     return text.split('\n').map(line => {
         // Ne pas supprimer les commentaires de section
-        if (SECTION_COMMENT_PATTERN.test(line)) {
+        if (sectionCommentPattern.test(line)) {
             return line;
         }
         // Supprimer les autres commentaires
-        if (COMMENT_REGEX.test(line)) {
+        if (/^\s*\/\//.test(line)) {
             return '';
         }
         return line;
     }).join('\n');
 }
 
-/**
- * Calcule la longueur effective d'un import pour le tri.
- * La logique dépend du type d'import (par défaut, nommé, ou les deux).
- * 
- * @param importItem L'import à évaluer
- * @returns La longueur effective pour le tri
- */
 function getEffectiveLengthForSorting(importItem: FormattedImport): number {
-    // Vérification défensive des entrées
-    if (!importItem || !importItem.importNames || importItem.importNames.length === 0) {
-        return DEFAULT_SORT_LENGTH;
-    }
-
-    // Cas 1: Import par défaut uniquement
     if (importItem.isDefaultImport && !importItem.hasNamedImports) {
         return importItem.importNames[0].length;
     }
 
-    // Cas 2: Imports nommés uniquement
     if (!importItem.isDefaultImport && importItem.hasNamedImports) {
         const namedImports = importItem.importNames;
         if (namedImports.length > 0) {
@@ -189,7 +164,6 @@ function getEffectiveLengthForSorting(importItem: FormattedImport): number {
         }
     }
 
-    // Cas 3: Import par défaut ET imports nommés
     if (importItem.isDefaultImport && importItem.hasNamedImports) {
         const namedImports = importItem.importNames.slice(1);
         if (namedImports.length > 0) {
@@ -198,7 +172,7 @@ function getEffectiveLengthForSorting(importItem: FormattedImport): number {
         return importItem.importNames[0].length;
     }
 
-    return DEFAULT_SORT_LENGTH;
+    return 999;
 }
 
 function formatImportItem(
@@ -293,23 +267,7 @@ function formatImportItem(
     }
 }
 
-/**
- * Trie les imports au sein d'un groupe selon plusieurs critères:
- * 1. React en premier dans le groupe Misc
- * 2. Imports par défaut (non-type) en premier
- * 3. Imports nommés (non-type) ensuite
- * 4. Imports de type en dernier
- * 5. Dans chaque catégorie, tri par longueur de nom
- * 
- * @param imports Liste des imports à trier
- * @returns Liste triée des imports
- */
 function sortImportsInGroup(imports: FormattedImport[]): FormattedImport[] {
-    // Vérification défensive
-    if (!imports || !Array.isArray(imports)) {
-        return [];
-    }
-
     return imports.sort((a, b) => {
         // Priorité spéciale pour React dans le groupe Misc
         if (a.group.name === 'Misc' && b.group.name === 'Misc') {
@@ -537,35 +495,228 @@ function generateFormattedImportsOptimized(
     return alignedLines.join('\n');
 }
 
-/**
- * Trouve la plage de tous les imports dans le texte source.
- * Cette fonction utilise une approche plus stricte pour éviter de capturer du code non-import.
- * 
- * @param text Le texte source à analyser
- * @returns Un objet contenant les positions de début et de fin de la section d'imports
- */
 function findAllImportsRange(text: string): { start: number; end: number } {
+    // Regex pour trouver les lignes d'import
+    const importRegex = /^\s*import\s+.*?(?:from\s+['"][^'"]+['"])?\s*;?.*$/gm;
+    
+    // Regex pour trouver les commentaires de section d'imports
+    const sectionCommentRegex = /^\s*\/\/\s*(?:Misc|DS|@app\/.*|@core|@library|Utils|.*\b(?:misc|ds|dossier|core|library|utils)\b.*)\s*$/gim;
+
+    // Regex pour trouver les lignes qui semblent être des fragments d'import
+    const possibleImportFragmentRegex = /^\s*([a-zA-Z0-9_]+,|[{}],?|\s*[a-zA-Z0-9_]+,?|\s*[a-zA-Z0-9_]+\s+from|\s*from|^[,}]\s*)$/;
+
+    let firstStart = text.length;
+    let lastEnd = 0;
+    let match;
+
+    // Trouver tous les imports et commentaires de section
+    while ((match = importRegex.exec(text)) !== null) {
+        firstStart = Math.min(firstStart, match.index);
+        lastEnd = Math.max(lastEnd, match.index + match[0].length);
+    }
+    
+    // Chercher également les commentaires de section
+    while ((match = sectionCommentRegex.exec(text)) !== null) {
+        firstStart = Math.min(firstStart, match.index);
+        lastEnd = Math.max(lastEnd, match.index + match[0].length);
+    }
+
+    // Si aucun import n'est trouvé, retourner une plage vide
+    if (firstStart === text.length) {
+        return { start: 0, end: 0 };
+    }
+
+    const lines = text.split('\n');
+    let inImportSection = false;
+    let currentPos = 0;
+    let sectionStart = firstStart;
+    let sectionEnd = lastEnd;
+
+    // Rechercher les fragments d'imports orphelins et les commentaires de section
+    const orphanedFragments: number[] = [];
+
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const lineLength = line.length + 1;
+        const trimmedLine = line.trim();
+
+        const isImportLine = trimmedLine.startsWith('import');
+        const isCommentLine = trimmedLine.startsWith('//');
+        const isEmptyLine = trimmedLine === '';
+        const isImportFragmentLine = possibleImportFragmentRegex.test(trimmedLine);
+
+        // Vérifier si cette ligne ressemble à un fragment d'import orphelin
+        const isOrphanedFragment =
+            !isImportLine &&
+            !isCommentLine &&
+            !isEmptyLine &&
+            (isImportFragmentLine ||
+                trimmedLine.includes('from') ||
+                (trimmedLine.startsWith('{') && trimmedLine.includes('}')) ||
+                trimmedLine.match(/^[A-Za-z0-9_]+,$/) !== null);
+
+        if (isOrphanedFragment) {
+            orphanedFragments.push(currentPos);
+            sectionEnd = Math.max(sectionEnd, currentPos + lineLength);
+        }
+
+        // Si c'est un commentaire de section ou une ligne d'import, inclure dans la section
+        if (isImportLine || (isCommentLine && /(?:misc|ds|dossier|core|library|utils)/i.test(trimmedLine))) {
+            inImportSection = true;
+            sectionStart = Math.min(sectionStart, currentPos);
+            sectionEnd = Math.max(sectionEnd, currentPos + lineLength);
+        } else if (
+            inImportSection &&
+            (isCommentLine || isEmptyLine || isImportFragmentLine)
+        ) {
+            sectionEnd = Math.max(sectionEnd, currentPos + lineLength);
+        } else if (
+            inImportSection &&
+            !isCommentLine &&
+            !isEmptyLine &&
+            !isImportFragmentLine &&
+            !isOrphanedFragment
+        ) {
+            const nextLine = i + 1 < lines.length ? lines[i + 1].trim() : '';
+            const nextLineIsImport = nextLine.startsWith('import');
+            const nextLineIsComment = nextLine.startsWith('//');
+
+            if (nextLineIsImport || nextLineIsComment) {
+                sectionEnd = Math.max(sectionEnd, currentPos + lineLength);
+            } else {
+                // Vérifier si les prochaines lignes contiennent des fragments d'import
+                let fragmentFound = false;
+                for (let j = i + 1; j < Math.min(i + 5, lines.length); j++) {
+                    if (possibleImportFragmentRegex.test(lines[j].trim())) {
+                        fragmentFound = true;
+                        break;
+                    }
+                }
+
+                if (fragmentFound) {
+                    sectionEnd = Math.max(sectionEnd, currentPos + lineLength);
+                } else {
+                    inImportSection = false;
+                }
+            }
+        }
+
+        currentPos += lineLength;
+    }
+
+    // Rechercher les fragments de commentaires qui pourraient faire partie de la section d'imports
+    const commentFragments = findCommentFragments(text);
+    for (const fragment of commentFragments) {
+        const isNearImportSection =
+            Math.abs(fragment.start - sectionEnd) < 200 ||
+            Math.abs(fragment.end - sectionStart) < 200;
+
+        if (isNearImportSection) {
+            sectionStart = Math.min(sectionStart, fragment.start);
+            sectionEnd = Math.max(sectionEnd, fragment.end);
+        }
+    }
+
+    // Inclure les fragments orphelins qui pourraient être après la section d'imports
+    for (const fragmentPos of orphanedFragments) {
+        if (Math.abs(fragmentPos - sectionEnd) < 200) {
+            const lines = text.substring(fragmentPos, fragmentPos + 200).split('\n');
+            let fragmentEnd = fragmentPos;
+            let linePos = fragmentPos;
+
+            for (const line of lines) {
+                linePos += line.length + 1;
+                if (possibleImportFragmentRegex.test(line.trim()) || line.trim().includes('from')) {
+                    fragmentEnd = linePos;
+                } else if (line.trim() !== '' && !line.trim().startsWith('//')) {
+                    break;
+                }
+            }
+
+            sectionEnd = Math.max(sectionEnd, fragmentEnd);
+        }
+    }
+
+    return { start: sectionStart, end: sectionEnd };
+}
+
+function findCommentFragments(
+    text: string
+): Array<{ start: number; end: number }> {
+    const fragments: Array<{ start: number; end: number }> = [];
+    const lines = text.split('\n');
+
+    let currentPos = 0;
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const lineLength = line.length + 1;
+
+        const isPossibleCommentFragment =
+            /^\s*[a-z]{1,5}\s*$/.test(line) ||
+            /^\s*\/?\s*[A-Z][a-z]+\s*$/.test(line) ||
+            (line.trim().length < 5 && /^\s*\/+\s*$/.test(line));
+
+        if (isPossibleCommentFragment) {
+            const prevLine = i > 0 ? lines[i - 1] : '';
+            const nextLine = i < lines.length - 1 ? lines[i + 1] : '';
+
+            const isNearImport =
+                prevLine.includes('import') ||
+                nextLine.includes('import') ||
+                prevLine.includes('from') ||
+                nextLine.includes('from');
+
+            if (isNearImport) {
+                fragments.push({
+                    start: currentPos,
+                    end: currentPos + lineLength,
+                });
+            }
+        }
+
+        currentPos += lineLength;
+    }
+
+    return fragments;
+}
+
+export function formatImports(sourceText: string): string {
+    // Trouver d'abord la plage complète des imports, y compris les fragments orphelins
+    const fullImportRange = findAllImportsRange(sourceText);
+
+    // Si aucun import n'est trouvé, retourner le texte source sans modification
+    if (fullImportRange.start === fullImportRange.end) {
+        return sourceText;
+    }
+
+    // Extraire tout le texte de la section d'imports
+    const importSectionText = sourceText.substring(
+        fullImportRange.start,
+        fullImportRange.end
+    );
+
+    // Capturer également les fragments orphelins qui pourraient ne pas être détectés comme imports
+    const orphanedFragmentsRegex = /(?:^\s*from|^\s*[{}]|\s*[a-zA-Z0-9_]+,|\s*[a-zA-Z0-9_]+\s+from)/gm;
+    const orphanedMatches = [...importSectionText.matchAll(orphanedFragmentsRegex)];
+
+    // Nettoyer le texte d'import en supprimant les commentaires non-nécessaires
+    const cleanedSourceText = removeCommentsFromImports(sourceText);
+
     // Créer un fichier source TypeScript pour l'analyse
     const sourceFile = ts.createSourceFile(
         'temp.ts',
-        text,
+        cleanedSourceText,
         ts.ScriptTarget.Latest,
         true
     );
 
-    // Collecter tous les nœuds d'import et leurs positions
+    // Collecter tous les nœuds d'import
+    const importNodes: ts.ImportDeclaration[] = [];
     const importRanges: [number, number][] = [];
-    const sectionComments: [number, number][] = [];
-    
-    // Trouver les commentaires de section
-    let match;
-    while ((match = SECTION_COMMENT_REGEX.exec(text)) !== null) {
-        sectionComments.push([match.index, match.index + match[0].length]);
-    }
 
-    // Fonction pour visiter les nœuds AST et trouver les imports
     function visit(node: ts.Node) {
         if (ts.isImportDeclaration(node)) {
+            importNodes.push(node);
             importRanges.push([node.getStart(sourceFile), node.getEnd()]);
         }
         ts.forEachChild(node, visit);
@@ -573,199 +724,20 @@ function findAllImportsRange(text: string): { start: number; end: number } {
 
     visit(sourceFile);
 
-    // Si aucun import n'est trouvé, retourner une plage vide
-    if (importRanges.length === 0) {
-        return { start: 0, end: 0 };
-    }
-
-    // Trier les plages d'import par position de début
-    importRanges.sort((a, b) => a[0] - b[0]);
-    
-    // Trouver la première et la dernière position d'import
-    let firstStart = importRanges[0][0];
-    let lastEnd = importRanges[importRanges.length - 1][1];
-    
-    // Inclure les commentaires de section qui sont proches des imports
-    for (const [start, commentEnd] of sectionComments) {
-        // Vérifier si le commentaire est avant le premier import mais proche
-        if (start < firstStart && firstStart - commentEnd < COMMENT_PROXIMITY_THRESHOLD) {
-            firstStart = start;
-        }
-        
-        // Vérifier si le commentaire est après le dernier import mais proche
-        if (start > lastEnd && start - lastEnd < COMMENT_PROXIMITY_THRESHOLD) {
-            lastEnd = commentEnd;
-        }
-        
-        // Vérifier si le commentaire est entre des imports
-        for (let i = 0; i < importRanges.length - 1; i++) {
-            const currentImportEnd = importRanges[i][1];
-            const nextImportStart = importRanges[i + 1][0];
-            
-            if (start > currentImportEnd && start < nextImportStart) {
-                // Le commentaire est entre deux imports, l'inclure dans la section
-                // Pas besoin de mettre à jour firstStart ou lastEnd car il est déjà dans la plage
-            }
-        }
-    }
-    
-    // Vérifier s'il y a des lignes vides ou des commentaires entre les imports
-    // et les inclure dans la section d'imports
-    const lines = text.split('\n');
-    let currentPos = 0;
-    let inImportSection = false;
-    let lastImportEnd = 0;
-    
-    for (let i = 0; i < lines.length; i++) {
-        const line = lines[i];
-        const lineLength = line.length + 1; // +1 pour le caractère de nouvelle ligne
-        const lineStart = currentPos;
-        const lineEnd = currentPos + lineLength;
-        const trimmedLine = line.trim();
-        
-        // Vérifier si cette ligne est dans la plage d'un import
-        const isInImportRange = importRanges.some(
-            ([start, end]) => lineStart >= start && lineEnd <= end
-        );
-        
-        // Vérifier si cette ligne est un commentaire de section
-        const isInSectionComment = sectionComments.some(
-            ([start, end]) => lineStart >= start && lineEnd <= end
-        );
-        
-        const isCommentLine = trimmedLine.startsWith('//');
-        const isEmptyLine = trimmedLine === '';
-        
-        // Si nous sommes dans une ligne d'import ou un commentaire de section,
-        // nous sommes dans la section d'imports
-        if (isInImportRange || isInSectionComment) {
-            inImportSection = true;
-            lastImportEnd = lineEnd;
-        } 
-        // Si nous sommes dans la section d'imports et que c'est une ligne vide ou un commentaire,
-        // continuer à considérer que nous sommes dans la section d'imports
-        else if (inImportSection && (isEmptyLine || isCommentLine)) {
-            // Ne rien faire, continuer à considérer que nous sommes dans la section d'imports
-        } 
-        // Si nous trouvons une ligne qui n'est ni un import, ni un commentaire, ni une ligne vide,
-        // et qu'il n'y a pas d'import après, alors nous sommes sortis de la section d'imports
-        else if (inImportSection) {
-            // Vérifier s'il y a un import après cette ligne
-            let hasImportAfter = false;
-            for (const [start] of importRanges) {
-                if (start > lineEnd) {
-                    hasImportAfter = true;
-                    break;
-                }
-            }
-            
-            if (!hasImportAfter) {
-                // Nous sommes sortis de la section d'imports
-                inImportSection = false;
-                break;
-            }
-        }
-        
-        currentPos += lineLength;
-    }
-    
-    // Ajouter une ligne vide après la dernière ligne d'import si elle existe
-    if (lastImportEnd > 0) {
-        // Trouver la fin de la ligne
-        const lineEndPos = text.indexOf('\n', lastImportEnd);
-        if (lineEndPos !== -1) {
-            lastEnd = lineEndPos + 1; // Inclure le caractère de nouvelle ligne
-        }
-    }
-    
-    return { start: firstStart, end: lastEnd };
-}
-
-/**
- * Formate les imports dans le texte source.
- * Cette fonction utilise une approche plus sûre pour identifier et formater uniquement
- * la section d'imports, évitant ainsi de modifier accidentellement du code React.
- * 
- * @param sourceText Le texte source à formater
- * @returns Le texte source avec les imports formatés
- */
-export function formatImports(sourceText: string): string {
-    // Vérification défensive des entrées
-    if (!sourceText || sourceText.trim().length === 0) {
+    // Si aucun import valide n'est trouvé, vérifier s'il y a des fragments orphelins
+    if (importNodes.length === 0 && orphanedMatches.length === 0) {
         return sourceText;
     }
 
-    try {
-        // Créer un fichier source TypeScript pour l'analyse
-        const sourceFile = ts.createSourceFile(
-            'temp.ts',
-            sourceText,
-            ts.ScriptTarget.Latest,
-            true
-        );
+    // Analyser et formater les imports
+    const formattedImports = parseImports(importNodes, sourceFile, IMPORT_GROUPS);
+    const groupedImports = groupImportsOptimized(formattedImports);
+    const formattedText = generateFormattedImportsOptimized(groupedImports);
 
-        // Collecter tous les nœuds d'import
-        const importNodes: ts.ImportDeclaration[] = [];
-
-        function visit(node: ts.Node) {
-            if (ts.isImportDeclaration(node)) {
-                importNodes.push(node);
-            }
-            ts.forEachChild(node, visit);
-        }
-
-        visit(sourceFile);
-
-        // Si aucun import n'est trouvé, retourner le texte source sans modification
-        if (importNodes.length === 0) {
-            return sourceText;
-        }
-
-        // Trouver la plage complète des imports en utilisant la nouvelle fonction plus sûre
-        const fullImportRange = findAllImportsRange(sourceText);
-
-        // Si aucune plage d'import n'est trouvée, retourner le texte source sans modification
-        if (fullImportRange.start === fullImportRange.end) {
-            return sourceText;
-        }
-
-        // Nettoyer le texte d'import en supprimant les commentaires non-nécessaires
-        const cleanedSourceText = removeCommentsFromImports(sourceText);
-
-        // Créer un nouveau fichier source avec le texte nettoyé
-        const cleanedSourceFile = ts.createSourceFile(
-            'temp.ts',
-            cleanedSourceText,
-            ts.ScriptTarget.Latest,
-            true
-        );
-
-        // Collecter tous les nœuds d'import du texte nettoyé
-        const cleanedImportNodes: ts.ImportDeclaration[] = [];
-
-        function visitCleaned(node: ts.Node) {
-            if (ts.isImportDeclaration(node)) {
-                cleanedImportNodes.push(node);
-            }
-            ts.forEachChild(node, visitCleaned);
-        }
-
-        visitCleaned(cleanedSourceFile);
-
-        // Analyser et formater les imports
-        const formattedImports = parseImports(cleanedImportNodes, cleanedSourceFile, IMPORT_GROUPS);
-        const groupedImports = groupImportsOptimized(formattedImports);
-        const formattedText = generateFormattedImportsOptimized(groupedImports);
-
-        // Remplacer la section d'imports originale par le texte formaté
-        return (
-            sourceText.substring(0, fullImportRange.start) +
-            formattedText +
-            sourceText.substring(fullImportRange.end)
-        );
-    } catch (error) {
-        // En cas d'erreur, retourner le texte source sans modification
-        console.error('Erreur lors du formatage des imports:', error);
-        return sourceText;
-    }
+    // Remplacer la section d'imports originale par le texte formaté
+    return (
+        sourceText.substring(0, fullImportRange.start) +
+        formattedText +
+        sourceText.substring(fullImportRange.end)
+    );
 }

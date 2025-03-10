@@ -1,9 +1,10 @@
 import * as vscode from 'vscode';
-import { logDebug, logError } from './utils/log';
-import { loadConfiguration } from './utils/config';
-import { formatImports } from './formatter';
 
-export function activate(context: vscode.ExtensionContext) {
+import { formatImports } from './formatter';
+import { loadConfiguration } from './utils/config';
+import { logDebug, logError } from './utils/log';
+
+export function activate(context: vscode.ExtensionContext) : void {
   loadConfiguration();
 
   vscode.workspace.onDidChangeConfiguration((event) => {
@@ -89,4 +90,4 @@ export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(formatImportsCommand);
 }
 
-export function deactivate() { }
+// export function deactivate() : void { }

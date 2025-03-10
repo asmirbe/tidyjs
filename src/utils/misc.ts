@@ -1,4 +1,4 @@
-import { FormatterConfig } from "../types";
+import { FormatterConfig } from '../types';
 
 // Helper : Function to sort import names by length
 export function sortImportNamesByLength(names: string[]): string[] {

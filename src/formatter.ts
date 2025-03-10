@@ -1,9 +1,10 @@
 import * as ts from 'typescript';
-import { logDebug } from './utils/log';
+
 import { parseImports } from './parser';
-import { DEFAULT_IMPORT_GROUPS as IMPORTED_IMPORT_GROUPS } from './utils/config';
-import { alignFromKeyword, formatSimpleImport, getFromIndex, isCommentLine, isEmptyLine, isSectionComment, sortImportNamesByLength } from './utils/misc';
 import type { FormattedImport, FormatterConfig, FormattedImportGroup, ImportNameWithComment } from './types';
+import { DEFAULT_IMPORT_GROUPS as IMPORTED_IMPORT_GROUPS } from './utils/config';
+import { logDebug } from './utils/log';
+import { alignFromKeyword, formatSimpleImport, getFromIndex, isCommentLine, isEmptyLine, isSectionComment, sortImportNamesByLength } from './utils/misc';
 
 // Configuration par défaut exportée pour permettre les surcharges
 export const DEFAULT_FORMATTER_CONFIG: FormatterConfig = {
@@ -135,16 +136,28 @@ function alignImportsBySection(
     return cleanUpLines(resultLines);
 }
 
-// Mise à jour de removeCommentsFromImports pour ne pas supprimer les commentaires internes
+// Mise à jour de removeCommentsFromImports pour supprimer tous les commentaires en ligne dans les imports
 function removeCommentsFromImports(text: string, config: FormatterConfig): string {
-    // Ne supprime que les commentaires sur des lignes isolées, pas ceux dans les imports
     return text.split('\n').map(line => {
         // Ne pas supprimer les commentaires de section
         if (isSectionComment(line, config)) {
             return line;
         }
         
-        // Ne supprimer les commentaires que s'ils sont sur une ligne isolée (pas à droite d'un import)
+        // Supprimer tous les commentaires en ligne dans les importations nommées
+        if (line.trim().includes('{') || line.trim().includes('}') || 
+            line.trim().match(/^[a-zA-Z0-9_]+,?$/) || 
+            (line.trim().match(/^\s*[a-zA-Z0-9_]+\s*(,|$)/) !== null)) {
+            
+            const commentIndex = line.indexOf('//');
+            if (commentIndex !== -1) {
+                const cleanedLine = line.substring(0, commentIndex).trimRight();
+                // Only return non-empty lines after comment removal
+                return cleanedLine.trim() ? cleanedLine : '';
+            }
+        }
+        
+        // Ne supprimer les commentaires standalone que s'ils ne sont pas à droite d'un import
         if (config.regexPatterns.anyComment.test(line) && 
             !line.includes('import') && 
             !line.trim().match(/[a-zA-Z0-9_]+\s*\/\//)) {
@@ -216,6 +229,7 @@ function formatDefaultImport(defaultName: string, moduleName: string, isTypeImpo
 }
 
 // Modifier la fonction formatNamedImports pour gérer les commentaires
+// Modifier la fonction formatNamedImports pour gérer les commentaires
 function formatNamedImports(
     namedImports: (string | ImportNameWithComment)[], 
     moduleName: string, 
@@ -226,17 +240,25 @@ function formatNamedImports(
     // Formatter les imports en supprimant les commentaires
     const formattedItems = namedImports.map(item => {
         if (typeof item === 'string') {
+            // Handle inline comments more robustly
+            const commentIndex = item.indexOf('//');
+            if (commentIndex !== -1) {
+                return item.substring(0, commentIndex).trim();
+            }
             return item;
         }
-        // Ignorer le commentaire, ne garder que le nom
+        // For ImportNameWithComment objects, just return the name
         return item.name;
     });
     
-    if (formattedItems.length === 1) {
-        return `import ${typePrefix}{ ${formattedItems[0]} } from '${moduleName}';`;
+    // Filter out any empty items that might have resulted from comment processing
+    const cleanedItems = formattedItems.filter(item => item.trim() !== '');
+    
+    if (cleanedItems.length === 1) {
+        return `import ${typePrefix}{ ${cleanedItems[0]} } from '${moduleName}';`;
     } else {
         return `import ${typePrefix}{
-    ${formattedItems.join(',\n    ')}
+    ${cleanedItems.join(',\n    ')}
 } from '${moduleName}';`;
     }
 }
@@ -255,6 +277,11 @@ function formatDefaultAndNamedImports(
     // Format named imports, supprimer les commentaires
     const formattedItems = namedImports.map(item => {
         if (typeof item === 'string') {
+            // Check if the item has an inline comment and remove it
+            const commentIndex = item.indexOf('//');
+            if (commentIndex !== -1) {
+                return item.substring(0, commentIndex).trim();
+            }
             return item;
         }
         // Ignorer le commentaire, ne garder que le nom
@@ -511,7 +538,7 @@ function generateFormattedImportsOptimized(
         // Fallback sur l'ordre des groupes dans la configuration
         const groupA = config.importGroups.find((g) => g.name === a[0]);
         const groupB = config.importGroups.find((g) => g.name === b[0]);
-        return (groupA?.order || 999) - (groupB?.order || 999);
+        return (groupA?.order ?? 999) - (groupB?.order ?? 999);
     });
 
     const formattedGroups: FormattedImportGroup[] = [];
@@ -817,7 +844,7 @@ export function formatImports(
     // Collecter tous les nœuds d'import
     const importNodes: ts.ImportDeclaration[] = [];
     
-    function visit(node: ts.Node) {
+    function visit(node: ts.Node) : void {
         if (ts.isImportDeclaration(node)) {
             importNodes.push(node);
         }

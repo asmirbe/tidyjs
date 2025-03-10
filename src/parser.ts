@@ -1,7 +1,7 @@
-import * as ts from "typescript";
-import { FormattedImport, ImportGroup } from "./types";
-import { DEFAULT_IMPORT_GROUPS } from "./utils/config";
-import { logDebug } from "./utils/log";
+import * as ts from 'typescript';
+import { FormattedImport, ImportGroup } from './types';
+import { DEFAULT_IMPORT_GROUPS } from './utils/config';
+import { logDebug } from './utils/log';
 
 // Constantes pour les expressions régulières fréquemment utilisées
 const TYPE_KEYWORD_REGEX = /^type\s+/;
@@ -16,7 +16,7 @@ function getImportGroup(moduleName: string, importGroups: ImportGroup[]): string
     }
 
     const importGroup = importGroups.find((group) => group.regex.test(moduleName));
-    const groupName = importGroup ? importGroup.name : "Misc";
+    const groupName = importGroup ? importGroup.name : 'Misc';
     
     // Stocker dans le cache
     importGroupCache.set(moduleName, groupName);
@@ -37,19 +37,24 @@ function parseNamedImports(
             element.getEnd()
         );
         
-        if (TYPE_KEYWORD_REGEX.test(sourceText)) {
-            typeImports.add(element.name.text);
+        // Extract just the name without comments
+        let importName = '';
+        if (element.propertyName) {
+            importName = `${element.propertyName.text} as ${element.name.text}`;
         } else {
-            if (element.propertyName) {
-                regularImports.add(`${element.propertyName.text} as ${element.name.text}`);
-            } else {
-                regularImports.add(element.name.text);
-            }
+            importName = element.name.text;
+        }
+        
+        if (TYPE_KEYWORD_REGEX.test(sourceText)) {
+            typeImports.add(importName);
+        } else {
+            regularImports.add(importName);
         }
     }
     
     return { regular: regularImports, types: typeImports };
 }
+
 
 export function parseImports(
     importNodes: ts.ImportDeclaration[],
@@ -62,7 +67,7 @@ export function parseImports(
     }
     
     if (!sourceFile) {
-        logDebug("parseImports: Fichier source manquant");
+        logDebug('parseImports: Fichier source manquant');
         return [];
     }
     
@@ -83,8 +88,7 @@ export function parseImports(
             const groupName = getImportGroup(moduleName, groups);
             
             // Trouver l'objet ImportGroup correspondant une seule fois par module
-            const importGroup = groups.find((g) => g.name === groupName) || 
-                                { name: 'Misc', regex: /.*/, order: 0 };
+            const importGroup = groups.find((g) => g.name === groupName) ?? { name: 'Misc', regex: /.*/, order: 0 };
             
             // Collections pour les noms d'imports
             const importNames = new Set<string>();

@@ -3,7 +3,8 @@ import * as vscode from 'vscode';
 const OUTPUT_CHANNEL = vscode.window.createOutputChannel('Import Formatter');
 const DEBUG_MODE = true;
 
-export function logDebug(message: string, ...args: any[]): void {
+
+export function logDebug(message: string, ...args: unknown[]): void {
   if (!DEBUG_MODE) {
     return;
   }
@@ -13,7 +14,7 @@ export function logDebug(message: string, ...args: any[]): void {
   
   if (args.length > 0) {
     formattedMessage += ' ' + args.map(arg => {
-      if (typeof arg === 'object') {
+      if (typeof arg === 'object' && arg !== null) {
         return JSON.stringify(arg);
       }
       return String(arg);
@@ -23,7 +24,7 @@ export function logDebug(message: string, ...args: any[]): void {
   OUTPUT_CHANNEL.appendLine(formattedMessage);
 }
 
-export function logError(message: string, ...args: any[]): void {
+export function logError(message: string, ...args: unknown[]): void {
   const timestamp = new Date().toISOString();
   let formattedMessage = `[${timestamp}] [ERROR] ${message}`;
   
@@ -31,7 +32,7 @@ export function logError(message: string, ...args: any[]): void {
     formattedMessage += ' ' + args.map(arg => {
       if (arg instanceof Error) {
         return `${arg.message}\n${arg.stack}`;
-      } else if (typeof arg === 'object') {
+      } else if (typeof arg === 'object' && arg !== null) {
         return JSON.stringify(arg);
       }
       return String(arg);

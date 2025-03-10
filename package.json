@@ -75,14 +75,9 @@
         },
         "importFormatter.alignmentSpacing": {
           "type": "number",
-          "default": 1,
+          "default": 0,
           "minimum": 0,
           "description": "Number of spaces to add when aligning 'from' keywords in imports"
-        },
-        "importFormatter.preserveComments": {
-          "type": "boolean",
-          "default": true,
-          "description": "Preserve inline comments within imports during formatting"
         }
       }
     }

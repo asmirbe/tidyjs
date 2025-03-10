@@ -223,12 +223,13 @@ function formatNamedImports(
 ): string {
     const typePrefix = isTypeImport ? 'type ' : '';
     
-    // Formatter les imports en préservant les commentaires
+    // Formatter les imports en supprimant les commentaires
     const formattedItems = namedImports.map(item => {
         if (typeof item === 'string') {
             return item;
         }
-        return item.comment ? `${item.name} ${item.comment}` : item.name;
+        // Ignorer le commentaire, ne garder que le nom
+        return item.name;
     });
     
     if (formattedItems.length === 1) {
@@ -251,12 +252,13 @@ function formatDefaultAndNamedImports(
     // Format default import
     const defaultImport = `import ${typePrefix}${defaultName} from '${moduleName}';`;
     
-    // Format named imports preserving comments
+    // Format named imports, supprimer les commentaires
     const formattedItems = namedImports.map(item => {
         if (typeof item === 'string') {
             return item;
         }
-        return item.comment ? `${item.name} ${item.comment}` : item.name;
+        // Ignorer le commentaire, ne garder que le nom
+        return item.name;
     });
     
     // Format named imports as a separate statement
@@ -799,29 +801,25 @@ export function formatImports(
         fullImportRange.start,
         adjustedEnd
     );
-
-    // Capturer également les fragments orphelins qui pourraient ne pas être détectés comme imports
-    const orphanedMatches = [...importSectionText.matchAll(config.regexPatterns.orphanedFragments)];
-
+    
     // Nettoyer le texte d'import en supprimant les commentaires non-nécessaires
-    const cleanedSourceText = removeCommentsFromImports(sourceText, config);
+    // IMPORTANT: Ne pas nettoyer le texte source complet, uniquement pour l'analyse
+    const cleanedImportText = removeCommentsFromImports(importSectionText, config);
 
     // Créer un fichier source TypeScript pour l'analyse
     const sourceFile = ts.createSourceFile(
         'temp.ts',
-        cleanedSourceText,
+        cleanedImportText,
         ts.ScriptTarget.Latest,
         true
     );
 
     // Collecter tous les nœuds d'import
     const importNodes: ts.ImportDeclaration[] = [];
-    const importRanges: [number, number][] = [];
-
+    
     function visit(node: ts.Node) {
         if (ts.isImportDeclaration(node)) {
             importNodes.push(node);
-            importRanges.push([node.getStart(sourceFile), node.getEnd()]);
         }
         ts.forEachChild(node, visit);
     }
@@ -829,7 +827,7 @@ export function formatImports(
     visit(sourceFile);
 
     // Si aucun import valide n'est trouvé, vérifier s'il y a des fragments orphelins
-    if (importNodes.length === 0 && orphanedMatches.length === 0) {
+    if (importNodes.length === 0) {
         return sourceText;
     }
 

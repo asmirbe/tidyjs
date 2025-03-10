@@ -9,7 +9,7 @@ import { alignFromKeyword, formatSimpleImport, getFromIndex, isCommentLine, isEm
 // Configuration par défaut exportée pour permettre les surcharges
 export const DEFAULT_FORMATTER_CONFIG: FormatterConfig = {
     importGroups: [...IMPORTED_IMPORT_GROUPS],
-    alignmentSpacing: 1,
+    alignmentSpacing: 12,
     regexPatterns: (() => {
         const patterns = {
             importLine: /^\s*import\s+.*?(?:from\s+['"][^'"]+['"])?\s*;?.*$/gm,
@@ -17,7 +17,7 @@ export const DEFAULT_FORMATTER_CONFIG: FormatterConfig = {
             importFragment: /^\s*([a-zA-Z0-9_]+,|[{}],?|\s*[a-zA-Z0-9_]+,?|\s*[a-zA-Z0-9_]+\s+from|\s*from|^[,}]\s*)$/,
             sectionCommentPattern: /^\s*\/\/\s*(?:Misc|DS|@app\/.*|@core|@library|Utils)/,
             anyComment: /^\s*\/\//,
-            typeDeclaration: /^type\s+[A-Za-z0-9_]+(\<.*\>)?\s*=/,
+            typeDeclaration: /^type\s+[A-Za-z0-9_]+(<.*>)?\s*=/,
             codeDeclaration: /^(interface|class|enum|function|const|let|var|export)\s+[A-Za-z0-9_]+/,
             orphanedFragments: /(?:^\s*from|^\s*[{}]|\s*[a-zA-Z0-9_]+,|\s*[a-zA-Z0-9_]+\s+from)/gm,
             possibleCommentFragment: /^\s*[a-z]{1,5}\s*$|^\s*\/?\s*[A-Z][a-z]+\s*$|(^\s*\/+\s*$)/
@@ -575,12 +575,12 @@ function hasImportCharacteristics(line: string, config: FormatterConfig): boolea
     const trimmedLine = line.trim();
     
     // Vérifier explicitement que ce n'est pas une déclaration de type
-    if (trimmedLine.match(/^type\s+[A-Za-z0-9_]+(\<.*\>)?\s*=/)) {
+    if (trimmedLine.match(config.regexPatterns.typeDeclaration)) {
         return false;
     }
     
     // Vérifier explicitement que ce n'est pas une déclaration d'interface ou de classe
-    if (trimmedLine.match(/^(interface|class|enum)\s+[A-Za-z0-9_]+/)) {
+    if (trimmedLine.match(config.regexPatterns.codeDeclaration)) {
         return false;
     }
     
@@ -640,8 +640,8 @@ function findAllImportsRange(text: string, config: FormatterConfig = DEFAULT_FOR
         const trimmedLine = line.trim();
 
         // Détection améliorée des non-imports
-        const isTypeDeclaration = trimmedLine.match(/^type\s+[A-Za-z0-9_]+(\<.*\>)?\s*=/) !== null;
-        const isInterfaceOrClassDeclaration = trimmedLine.match(/^(interface|class|enum|function|const|let|var)\s+[A-Za-z0-9_]+/) !== null;
+        const isTypeDeclaration = config.regexPatterns.typeDeclaration.test(trimmedLine);
+        const isInterfaceOrClassDeclaration = config.regexPatterns.codeDeclaration.test(trimmedLine);
 
         const isImportLine = trimmedLine.startsWith('import');
         const isCommentLine = trimmedLine.startsWith('//');
@@ -810,8 +810,8 @@ export function formatImports(
         const line = lines[i].trim();
         
         // Si on trouve une déclaration de type, interface, etc., ajuster la fin
-        if (line.match(/^type\s+[A-Za-z0-9_]+(\<.*\>)?\s*=/) ||
-            line.match(/^(interface|class|enum|function|const|let|var)\s+[A-Za-z0-9_]+/)) {
+        if (config.regexPatterns.typeDeclaration.test(line) ||
+            config.regexPatterns.codeDeclaration.test(line)) {
             
             // Calculer la position de cette ligne
             const lineStart = fullImportRange.start + 

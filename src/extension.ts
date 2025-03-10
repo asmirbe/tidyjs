@@ -1,15 +1,15 @@
 import * as vscode from 'vscode';
 
 import { formatImports } from './formatter';
-import { loadConfiguration } from './utils/config';
+import { configManager } from './utils/config';
 import { logDebug, logError } from './utils/log';
 
 export function activate(context: vscode.ExtensionContext) : void {
-  loadConfiguration();
+  configManager.loadConfiguration();
 
   vscode.workspace.onDidChangeConfiguration((event) => {
     if (event.affectsConfiguration('importFormatter')) {
-      loadConfiguration();
+      configManager.loadConfiguration();
     }
   });
 

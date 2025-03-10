@@ -2,37 +2,9 @@ import * as ts from 'typescript';
 
 import { parseImports } from './parser';
 import type { FormattedImport, FormatterConfig, FormattedImportGroup, ImportNameWithComment } from './types';
-import { DEFAULT_IMPORT_GROUPS as IMPORTED_IMPORT_GROUPS } from './utils/config';
+import { configManager } from './utils/config';
 import { logDebug } from './utils/log';
 import { alignFromKeyword, formatSimpleImport, getFromIndex, isCommentLine, isEmptyLine, isSectionComment, sortImportNamesByLength } from './utils/misc';
-
-// Configuration par défaut exportée pour permettre les surcharges
-export const DEFAULT_FORMATTER_CONFIG: FormatterConfig = {
-    importGroups: [...IMPORTED_IMPORT_GROUPS],
-    alignmentSpacing: 12,
-    regexPatterns: (() => {
-        const patterns = {
-            importLine: /^\s*import\s+.*?(?:from\s+['"][^'"]+['"])?\s*;?.*$/gm,
-            sectionComment: /^\s*\/\/\s*(?:Misc|DS|@app\/.*|@core|@library|Utils|.*\b(?:misc|ds|dossier|core|library|utils)\b.*)\s*$/gim,
-            importFragment: /^\s*([a-zA-Z0-9_]+,|[{}],?|\s*[a-zA-Z0-9_]+,?|\s*[a-zA-Z0-9_]+\s+from|\s*from|^[,}]\s*)$/,
-            sectionCommentPattern: /^\s*\/\/\s*(?:Misc|DS|@app\/.*|@core|@library|Utils)/,
-            anyComment: /^\s*\/\//,
-            typeDeclaration: /^type\s+[A-Za-z0-9_]+(<.*>)?\s*=/,
-            codeDeclaration: /^(interface|class|enum|function|const|let|var|export)\s+[A-Za-z0-9_]+/,
-            orphanedFragments: /(?:^\s*from|^\s*[{}]|\s*[a-zA-Z0-9_]+,|\s*[a-zA-Z0-9_]+\s+from)/gm,
-            possibleCommentFragment: /^\s*[a-z]{1,5}\s*$|^\s*\/?\s*[A-Z][a-z]+\s*$|(^\s*\/+\s*$)/
-        };
-        
-        // Pré-compiler les expressions régulières pour éviter de les recompiler à chaque utilisation
-        const compiledRegex: Record<string, RegExp> = {};
-        
-        for (const [key, pattern] of Object.entries(patterns)) {
-            compiledRegex[key] = new RegExp(pattern.source, pattern.flags);
-        }
-        
-        return compiledRegex as FormatterConfig['regexPatterns'];
-    })()
-};
 
 // Cache pour la memoization des calculs de longueur
 const lengthMemoCache = new Map<string, number>();
@@ -103,7 +75,7 @@ function alignImportsInGroup(
 
 function alignImportsBySection(
     formattedGroups: FormattedImportGroup[],
-    config: FormatterConfig = DEFAULT_FORMATTER_CONFIG
+    config: FormatterConfig = configManager.getFormatterConfig()
 ): string[] {
     const resultLines: string[] = [];
     const seenGroups = new Set<string>();
@@ -136,15 +108,14 @@ function alignImportsBySection(
     return cleanUpLines(resultLines);
 }
 
-// Mise à jour de removeCommentsFromImports pour supprimer tous les commentaires en ligne dans les imports
 function removeCommentsFromImports(text: string, config: FormatterConfig): string {
     return text.split('\n').map(line => {
-        // Ne pas supprimer les commentaires de section
+        // Don't remove section comments
         if (isSectionComment(line, config)) {
             return line;
         }
         
-        // Supprimer tous les commentaires en ligne dans les importations nommées
+        // Remove all inline comments in named imports
         if (line.trim().includes('{') || line.trim().includes('}') || 
             line.trim().match(/^[a-zA-Z0-9_]+,?$/) || 
             (line.trim().match(/^\s*[a-zA-Z0-9_]+\s*(,|$)/) !== null)) {
@@ -157,7 +128,7 @@ function removeCommentsFromImports(text: string, config: FormatterConfig): strin
             }
         }
         
-        // Ne supprimer les commentaires standalone que s'ils ne sont pas à droite d'un import
+        // Only remove standalone comments if they're not to the right of an import
         if (config.regexPatterns.anyComment.test(line) && 
             !line.includes('import') && 
             !line.trim().match(/[a-zA-Z0-9_]+\s*\/\//)) {
@@ -167,7 +138,6 @@ function removeCommentsFromImports(text: string, config: FormatterConfig): strin
     }).join('\n');
 }
 
-// Fonction de memoization pour le calcul des longueurs
 function getMemoizedLength(importItem: FormattedImport): number {
     // Créer une clé unique basée sur les propriétés de l'import
     const cacheKey = `${importItem.moduleName}_${importItem.isDefaultImport}_${importItem.hasNamedImports}_${importItem.importNames.join(',')}`;
@@ -181,7 +151,6 @@ function getMemoizedLength(importItem: FormattedImport): number {
     return length;
 }
 
-// Fonction réelle de calcul de longueur
 function calculateEffectiveLengthForSorting(importItem: FormattedImport): number {
     // Import par défaut sans imports nommés
     if (importItem.isDefaultImport && !importItem.hasNamedImports) {
@@ -219,7 +188,6 @@ function calculateEffectiveLengthForSorting(importItem: FormattedImport): number
     return 999;
 }
 
-// Remplacer getEffectiveLengthForSorting par la version memoizée
 const getEffectiveLengthForSorting = getMemoizedLength;
 
 function formatDefaultImport(defaultName: string, moduleName: string, isTypeImport: boolean): string {
@@ -228,7 +196,6 @@ function formatDefaultImport(defaultName: string, moduleName: string, isTypeImpo
         : `import ${defaultName} from '${moduleName}';`;
 }
 
-// Modifier la fonction formatNamedImports pour gérer les commentaires
 // Modifier la fonction formatNamedImports pour gérer les commentaires
 function formatNamedImports(
     namedImports: (string | ImportNameWithComment)[], 
@@ -533,7 +500,7 @@ function groupImportsOptimized(
 
 function generateFormattedImportsOptimized(
     groupedImports: Map<string, FormattedImport[]>,
-    config: FormatterConfig = DEFAULT_FORMATTER_CONFIG
+    config: FormatterConfig = configManager.getFormatterConfig()
 ): string {
     // Ordre défini des groupes d'imports
     const configGroups = [...config.importGroups]
@@ -623,7 +590,7 @@ function hasImportCharacteristics(line: string, config: FormatterConfig): boolea
            trimmedLine.match(/^[A-Za-z0-9_]+,$/) !== null;
 }
 
-function findAllImportsRange(text: string, config: FormatterConfig = DEFAULT_FORMATTER_CONFIG): { start: number; end: number } {
+function findAllImportsRange(text: string, config: FormatterConfig = configManager.getFormatterConfig()): { start: number; end: number } {
     // Regex pour trouver les lignes d'import
     const importRegex = config.regexPatterns.importLine;
     
@@ -822,8 +789,12 @@ function findAllImportsRange(text: string, config: FormatterConfig = DEFAULT_FOR
 
 export function formatImports(
     sourceText: string, 
-    config: FormatterConfig = DEFAULT_FORMATTER_CONFIG
+    config: FormatterConfig = configManager.getFormatterConfig()
 ): string {
+    // Ensure we use the latest configuration values
+    config.importGroups = configManager.getImportGroups();
+    config.alignmentSpacing = configManager.getAlignmentSpacing();
+
     // Trouver d'abord la plage complète des imports, y compris les fragments orphelins
     const fullImportRange = findAllImportsRange(sourceText, config);
 

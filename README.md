@@ -71,3 +71,26 @@ import { formatDate } from '@library/helpers';
 
 - Utilisez la commande "Format Document" de VSCode (Alt+Shift+F)
 - Ou utilisez la commande "Format Imports" dans la palette de commandes
+
+## Bugs connus
+
+Si un fichier commence par un import nommé contenant des commentaires en ligne, l'import peut être mal formaté :
+
+Ce code :
+```typescript
+import {
+  getUserByAge, // Get user by age and ID
+  useDataFromStorage // Hook to get data from storage
+} from '@app/dossier/help';
+```
+
+Devient : 
+```typescript
+
+
+    getUserByAge, // Get user by age and ID
+    useDataFromStorage // Hook to get data from storage
+} from '@app/dossier/help';
+```
+
+Je travailles actuellement sur une correction de ce problème.

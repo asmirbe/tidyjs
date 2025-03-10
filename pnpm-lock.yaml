@@ -8,6 +8,9 @@ importers:
 
   .:
     devDependencies:
+      '@eslint/js':
+        specifier: ^9.22.0
+        version: 9.22.0
       '@types/mocha':
         specifier: ^10.0.10
         version: 10.0.10

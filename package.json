@@ -3,6 +3,9 @@
   "displayName": "ImportTidy",
   "description": "ImportTidy est une extension VSCode qui organise et formate automatiquement vos déclarations d'import dans les fichiers TypeScript et JavaScript. Elle groupe vos imports par catégories personnalisables, aligne parfaitement les mots-clés 'from', et trie intelligemment vos imports selon leur type et leur longueur. Configurez facilement vos propres groupes d'imports et personnalisez l'espacement pour créer une structure d'imports cohérente et lisible pour vos projets.",
   "version": "0.0.1",
+  "author": {
+    "name": "Asmir BELKIC"
+  },
   "engines": {
     "vscode": "^1.98.0"
   },
@@ -85,12 +88,13 @@
     }
   },
   "scripts": {
-    "vscode:prepublish": "npm run package",
+    "vscode:prepublish": "npm run build-prod",
     "compile": "npm run check-types && npm run lint && node esbuild.js",
     "watch": "npm-run-all -p watch:*",
     "watch:esbuild": "node esbuild.js --watch",
     "watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
-    "package": "npm run check-types && npm run lint && node esbuild.js --production",
+    "build-prod": "npm run check-types && npm run lint && node esbuild.js --production",
+    "zip": "vsce package --allow-missing-repository",
     "compile-tests": "tsc -p . --outDir out",
     "watch-tests": "tsc -p . -w --outDir out",
     "pretest": "npm run compile-tests && npm run compile && npm run lint",

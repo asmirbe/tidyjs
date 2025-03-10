@@ -240,7 +240,6 @@ function formatNamedImports(
     }
 }
 
-// Modifier formatDefaultAndNamedImports de la même façon
 function formatDefaultAndNamedImports(
     defaultName: string, 
     namedImports: (string | ImportNameWithComment)[], 
@@ -249,7 +248,10 @@ function formatDefaultAndNamedImports(
 ): string {
     const typePrefix = isTypeImport ? 'type ' : '';
     
-    // Formatter les imports nommés en préservant les commentaires
+    // Format default import
+    const defaultImport = `import ${typePrefix}${defaultName} from '${moduleName}';`;
+    
+    // Format named imports preserving comments
     const formattedItems = namedImports.map(item => {
         if (typeof item === 'string') {
             return item;
@@ -257,13 +259,18 @@ function formatDefaultAndNamedImports(
         return item.comment ? `${item.name} ${item.comment}` : item.name;
     });
     
+    // Format named imports as a separate statement
+    let namedImport;
     if (formattedItems.length === 1) {
-        return `import ${typePrefix}${defaultName}, { ${formattedItems[0]} } from '${moduleName}';`;
+        namedImport = `import ${typePrefix}{ ${formattedItems[0]} } from '${moduleName}';`;
     } else {
-        return `import ${typePrefix}${defaultName}, {
+        namedImport = `import ${typePrefix}{
     ${formattedItems.join(',\n    ')}
 } from '${moduleName}';`;
     }
+    
+    // Return both imports as separate statements
+    return `${defaultImport}\n${namedImport}`;
 }
 
 function formatImportItem(

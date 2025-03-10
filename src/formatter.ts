@@ -325,7 +325,7 @@ function formatImportItem(
         ? importNames.filter((_, index) => (isDefaultImport ? index > 0 : true))
         : [];
 
-    // Import par défaut uniquement
+    // Import par défaut uniquement (including type default imports)
     if (isDefaultImport && namedImports.length === 0) {
         statements.push(formatDefaultImport(importNames[0], moduleName, isTypeImport));
         return;
@@ -394,6 +394,7 @@ function sortImportsInGroup(imports: FormattedImport[]): FormattedImport[] {
     });
 }
 
+// ...existing code...
 function groupImportsOptimized(
     imports: FormattedImport[]
 ): Map<string, FormattedImport[]> {
@@ -401,6 +402,8 @@ function groupImportsOptimized(
 
     // Map spéciale pour suivre les imports de type par module
     const typeImportsByModule = new Map<string, Set<string>>();
+    // Maps to track default type imports separately
+    const defaultTypeImportsByModule = new Map<string, string>();
 
     // Ne pas séparer les types dans un groupe à part
     for (const importItem of imports) {
@@ -415,37 +418,72 @@ function groupImportsOptimized(
 
         // Cas spécial pour les imports de type
         if (importItem.isTypeImport) {
-            // Clé pour les imports de type
-            const typeKey = `${moduleName}_TYPE_`;
-
-            // Garder trace des noms de type pour ce module
-            if (!typeImportsByModule.has(moduleName)) {
-                typeImportsByModule.set(moduleName, new Set<string>());
-            }
-
-            // Ajouter les noms de type à l'ensemble
-            const typeNames = typeImportsByModule.get(moduleName)!;
-            importItem.importNames.forEach(name => typeNames.add(name));
-
-            // Si un import de type pour ce module existe déjà, le mettre à jour
-            if (moduleMap.has(typeKey)) {
-                const existingTypeImport = moduleMap.get(typeKey)!;
-                existingTypeImport.importNames = Array.from(typeNames);
-            } else {
-                // Sinon, créer un nouvel import de type
-                moduleMap.set(typeKey, {
+            if (importItem.isDefaultImport) {
+                // Handle default type imports separately
+                const defaultTypeKey = `${moduleName}_DEFAULT_TYPE_`;
+                defaultTypeImportsByModule.set(moduleName, importItem.importNames[0]);
+                
+                // Create or update the default type import
+                moduleMap.set(defaultTypeKey, {
                     ...importItem,
-                    importNames: Array.from(typeNames),
+                    importNames: [importItem.importNames[0]],
                     isTypeImport: true,
-                    isDefaultImport: false,
-                    hasNamedImports: true
+                    isDefaultImport: true,
+                    hasNamedImports: false
                 });
+                
+                // If there are additional named imports beyond the default, handle them separately
+                if (importItem.importNames.length > 1 && importItem.hasNamedImports) {
+                    const namedTypesKey = `${moduleName}_NAMED_TYPE_`;
+                    const namedTypeImports = importItem.importNames.slice(1);
+                    
+                    // Create or update named type imports
+                    if (moduleMap.has(namedTypesKey)) {
+                        const existing = moduleMap.get(namedTypesKey)!;
+                        existing.importNames = [...existing.importNames, ...namedTypeImports];
+                    } else {
+                        moduleMap.set(namedTypesKey, {
+                            ...importItem,
+                            importNames: namedTypeImports,
+                            isTypeImport: true,
+                            isDefaultImport: false,
+                            hasNamedImports: true
+                        });
+                    }
+                }
+            } else {
+                // Handle named type imports (non-default)
+                // Clé pour les imports de type nommés
+                const namedTypeKey = `${moduleName}_NAMED_TYPE_`;
+
+                // Garder trace des noms de type pour ce module
+                if (!typeImportsByModule.has(moduleName)) {
+                    typeImportsByModule.set(moduleName, new Set<string>());
+                }
+
+                // Ajouter les noms de type à l'ensemble
+                const typeNames = typeImportsByModule.get(moduleName)!;
+                importItem.importNames.forEach(name => typeNames.add(name));
+
+                // Si un import de type pour ce module existe déjà, le mettre à jour
+                if (moduleMap.has(namedTypeKey)) {
+                    const existingTypeImport = moduleMap.get(namedTypeKey)!;
+                    existingTypeImport.importNames = Array.from(typeNames);
+                } else {
+                    // Sinon, créer un nouvel import de type
+                    moduleMap.set(namedTypeKey, {
+                        ...importItem,
+                        importNames: Array.from(typeNames),
+                        isTypeImport: true,
+                        isDefaultImport: false,
+                        hasNamedImports: true
+                    });
+                }
             }
             continue;
         }
 
         // Cas standard pour les imports non-type
-        // CORRECTION: Utiliser une clé qui distingue les imports par défaut
         const mapKey = importItem.isDefaultImport ?
             `${moduleName}_DEFAULT_` :
             `${moduleName}_NAMED_`;
@@ -461,22 +499,15 @@ function groupImportsOptimized(
 
             existingImport.importNames = Array.from(mergedNames);
 
-            // CORRECTION: Ne pas modifier isDefaultImport et hasNamedImports automatiquement
-            // mais recalculer hasNamedImports en fonction du nombre d'imports après la fusion
-
-            // Si c'est un import par défaut, le premier élément est le nom de l'import par défaut
+            // Recalculer hasNamedImports en fonction du nombre d'imports après la fusion
             const namedImportCount = existingImport.isDefaultImport ?
                 existingImport.importNames.length - 1 :
                 existingImport.importNames.length;
 
-            // hasNamedImports est vrai s'il y a des imports nommés après avoir exclu l'import par défaut
             existingImport.hasNamedImports = namedImportCount > 0;
 
         } else {
-            // CORRECTION: Vérifier que hasNamedImports est correct avant d'ajouter l'import
             if (importItem.isDefaultImport) {
-                // Pour un import par défaut, hasNamedImports est vrai s'il y a plus d'un nom
-                // (le premier étant l'import par défaut)
                 const namedImportCount = importItem.importNames.length - 1;
                 const correctedItem = {
                     ...importItem,
@@ -498,6 +529,7 @@ function groupImportsOptimized(
 
     return result;
 }
+
 
 function generateFormattedImportsOptimized(
     groupedImports: Map<string, FormattedImport[]>,

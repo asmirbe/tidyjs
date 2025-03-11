@@ -49,8 +49,9 @@ export function activate(context: vscode.ExtensionContext) : void {
             logDebug('No changes needed for the selection');
           }
         } catch (error) {
-          logError('Error formatting imports in selection:', error);
-          vscode.window.showErrorMessage('Error formatting imports: ' + String(error));
+          logError('Error in selection:', error);
+          const errorMessage = String(error);
+          vscode.window.showErrorMessage(errorMessage);
         }
         return;
       }
@@ -81,8 +82,9 @@ export function activate(context: vscode.ExtensionContext) : void {
           logDebug('No changes needed for the document');
         }
       } catch (error) {
-        logError('Error formatting imports:', error);
-        vscode.window.showErrorMessage('Error formatting imports: ' + String(error));
+        logError('Error:', error);
+        const errorMessage = String(error);
+        vscode.window.showErrorMessage(errorMessage);
       }
     }
   );

@@ -78,7 +78,7 @@ export default [
             "node_modules/**",
             "dist/**",
             "out/**",
-            "tests/**",
+            "test/**",
         ]
     }
 ];

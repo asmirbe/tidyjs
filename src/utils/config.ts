@@ -8,9 +8,8 @@ export interface ConfigChangeEvent {
 
 const DEFAULT_FORMATTER_CONFIG: FormatterConfig = {
   importGroups: [
-    { name: 'Misc', regex: /^(react|lodash|date-fns)$/, order: 0 },
+    { name: 'Misc', regex: /^(react|react-.*|lodash|date-fns|classnames|@fortawesome|@reach|uuid|@tanstack|ag-grid-community|framer-motion)$/, order: 0 },
     { name: 'DS', regex: /^ds$/, order: 1 },
-    { name: '@app/dossier', regex: /^@app\/dossier/, order: 2 },
     { name: '@core', regex: /^@core/, order: 3 },
     { name: '@library', regex: /^@library/, order: 4 },
     { name: 'Utils', regex: /^yutils/, order: 5 },
@@ -19,14 +18,15 @@ const DEFAULT_FORMATTER_CONFIG: FormatterConfig = {
   regexPatterns: (() => {
     const patterns = {
       importLine: /^\s*import\s+.*?(?:from\s+['"][^'"]+['"])?\s*;?.*$/gm,
-      sectionComment: /^\s*\/\/\s*(?:Misc|DS|@app\/.*|@core|@library|Utils|.*\b(?:misc|ds|dossier|core|library|utils)\b.*)\s*$/gim,
+      sectionComment: /^\s*\/\/\s*(?:Misc|DS|@app(?:\/[a-zA-Z0-9_-]+)?|@core|@library|Utils|.*\b(?:misc|ds|dossier|client|notification|core|library|utils)\b.*)\s*$/gim,
       importFragment: /^\s*([a-zA-Z0-9_]+,|[{}],?|\s*[a-zA-Z0-9_]+,?|\s*[a-zA-Z0-9_]+\s+from|\s*from|^[,}]\s*)$/,
-      sectionCommentPattern: /^\s*\/\/\s*(?:Misc|DS|@app\/.*|@core|@library|Utils)/,
+      sectionCommentPattern: /^\s*\/\/\s*(?:Misc|DS|@app(?:\/[a-zA-Z0-9_-]+)?|@core|@library|Utils)/,
       anyComment: /^\s*\/\//,
       typeDeclaration: /^type\s+[A-Za-z0-9_]+(<.*>)?\s*=/,
       codeDeclaration: /^(interface|class|enum|function|const|let|var|export)\s+[A-Za-z0-9_]+/,
       orphanedFragments: /(?:^\s*from|^\s*[{}]|\s*[a-zA-Z0-9_]+,|\s*[a-zA-Z0-9_]+\s+from)/gm,
-      possibleCommentFragment: /^\s*[a-z]{1,5}\s*$|^\s*\/?\s*[A-Z][a-z]+\s*$|(^\s*\/+\s*$)/
+      possibleCommentFragment: /^\s*[a-z]{1,5}\s*$|^\s*\/?\s*[A-Z][a-z]+\s*$|(^\s*\/+\s*$)/,
+      appSubfolderPattern: /^@app\/([a-zA-Z0-9_-]+)/
     };
     
     const compiledRegex: Record<string, RegExp> = {};
@@ -42,6 +42,7 @@ const DEFAULT_FORMATTER_CONFIG: FormatterConfig = {
 class ConfigManager {
   private config: FormatterConfig;
   private eventEmitter: vscode.EventEmitter<ConfigChangeEvent> = new vscode.EventEmitter<ConfigChangeEvent>();
+  private appSubfolders: Map<string, ImportGroup> = new Map();
   
   public readonly onDidConfigChange: vscode.Event<ConfigChangeEvent> = this.eventEmitter.event;
 
@@ -55,7 +56,31 @@ class ConfigManager {
   }
 
   public getImportGroups(): ImportGroup[] {
-    return this.config.importGroups;
+    const baseGroups = [...this.config.importGroups];
+    const appSubfolderGroups = Array.from(this.appSubfolders.values());
+    
+    const sortedGroups = [...baseGroups, ...appSubfolderGroups].sort((a, b) => {
+      if (a.name === 'Misc') return -1;
+      if (b.name === 'Misc') return 1;
+      if (a.name === 'DS') return -1;
+      if (b.name === 'DS') return 1;
+      
+      const aIsApp = a.name.startsWith('@app');
+      const bIsApp = b.name.startsWith('@app');
+      
+      if (aIsApp && !bIsApp) return -1;
+      if (!aIsApp && bIsApp) return 1;
+      
+      if (aIsApp && bIsApp) {
+        if (a.name === '@app') return 1;
+        if (b.name === '@app') return -1;
+        return a.name.localeCompare(b.name);
+      }
+      
+      return a.order - b.order;
+    });
+    
+    return sortedGroups;
   }
 
   public getAlignmentSpacing(): number {
@@ -66,6 +91,20 @@ class ConfigManager {
     return this.config.regexPatterns;
   }
 
+  public registerAppSubfolder(subfolder: string): void {
+    if (subfolder && !this.appSubfolders.has(subfolder)) {
+      const order = 2;
+      const name = `@app/${subfolder}`;
+      const regex = new RegExp(`^@app\\/${subfolder}`);
+      
+      this.appSubfolders.set(subfolder, {
+        name,
+        regex,
+        order
+      });
+    }
+  }
+  
   public loadConfiguration(): void {
     const vsConfig = vscode.workspace.getConfiguration('importFormatter');
     
@@ -88,11 +127,11 @@ class ConfigManager {
 
   public getFormatterConfig(): FormatterConfig {
     return {
-        importGroups: configManager.getImportGroups(),
-        alignmentSpacing: configManager.getAlignmentSpacing(),
-        regexPatterns: configManager.getRegexPatterns()
+      importGroups: this.getImportGroups(),
+      alignmentSpacing: this.getAlignmentSpacing(),
+      regexPatterns: this.getRegexPatterns()
     };
-}
+  }
 }
 
 export const configManager = new ConfigManager();

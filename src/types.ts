@@ -44,6 +44,7 @@ export interface FormatterConfig {
     alignmentSpacing: number;
     regexPatterns: {
         importLine: RegExp;
+        appSubfolderPattern: RegExp;
         sectionComment: RegExp;
         importFragment: RegExp;
         sectionCommentPattern: RegExp;

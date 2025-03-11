@@ -791,52 +791,41 @@ export function formatImports(
     sourceText: string, 
     config: FormatterConfig = configManager.getFormatterConfig()
 ): string {
-    // Ensure we use the latest configuration values
     config.importGroups = configManager.getImportGroups();
     config.alignmentSpacing = configManager.getAlignmentSpacing();
 
-    // Trouver d'abord la plage complète des imports, y compris les fragments orphelins
     const fullImportRange = findAllImportsRange(sourceText, config);
 
-    // Si aucun import n'est trouvé, retourner le texte source sans modification
     if (fullImportRange.start === fullImportRange.end) {
         return sourceText;
     }
 
-    // Effectuer une vérification supplémentaire pour éviter d'inclure des déclarations de type
     const importSection = sourceText.substring(fullImportRange.start, fullImportRange.end);
     const lines = importSection.split('\n');
     let adjustedEnd = fullImportRange.end;
 
-    // Parcourir la section d'imports à partir de la fin
     for (let i = lines.length - 1; i >= 0; i--) {
         const line = lines[i].trim();
         
-        // Si on trouve une déclaration de type, interface, etc., ajuster la fin
         if (config.regexPatterns.typeDeclaration.test(line) ||
             config.regexPatterns.codeDeclaration.test(line)) {
             
-            // Calculer la position de cette ligne
             const lineStart = fullImportRange.start + 
                 lines.slice(0, i).join('\n').length + 
-                (i > 0 ? i : 0); // Ajouter le nombre de caractères '\n'
+                (i > 0 ? i : 0);
                 
             adjustedEnd = lineStart;
             break;
         }
     }
 
-    // Extraire tout le texte de la section d'imports avec la fin ajustée
     const importSectionText = sourceText.substring(
         fullImportRange.start,
         adjustedEnd
     );
     
-    // Nettoyer le texte d'import en supprimant les commentaires non-nécessaires
-    // IMPORTANT: Ne pas nettoyer le texte source complet, uniquement pour l'analyse
     const cleanedImportText = removeCommentsFromImports(importSectionText, config);
 
-    // Créer un fichier source TypeScript pour l'analyse
     const sourceFile = ts.createSourceFile(
         'temp.ts',
         cleanedImportText,
@@ -844,29 +833,38 @@ export function formatImports(
         true
     );
 
-    // Collecter tous les nœuds d'import
     const importNodes: ts.ImportDeclaration[] = [];
     
     function visit(node: ts.Node) : void {
         if (ts.isImportDeclaration(node)) {
             importNodes.push(node);
+            
+            if (node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier)) {
+                const modulePath = node.moduleSpecifier.text;
+                const appSubfolderMatch = modulePath.match(config.regexPatterns.appSubfolderPattern);
+                
+                if (appSubfolderMatch?.[1]) {
+                    const subfolder = appSubfolderMatch[1];
+                    if (typeof configManager.registerAppSubfolder === 'function') {
+                        configManager.registerAppSubfolder(subfolder);
+                    }
+                }
+            }
         }
         ts.forEachChild(node, visit);
     }
 
     visit(sourceFile);
 
-    // Si aucun import valide n'est trouvé, vérifier s'il y a des fragments orphelins
     if (importNodes.length === 0) {
         return sourceText;
     }
 
-    // Analyser et formater les imports
+    config.importGroups = configManager.getImportGroups();
     const formattedImports = parseImports(importNodes, sourceFile, config.importGroups);
     const groupedImports = groupImportsOptimized(formattedImports);
     let formattedText = generateFormattedImportsOptimized(groupedImports, config);
     
-    // S'assurer qu'il y a bien une ligne vide à la fin des imports
     if (!formattedText.endsWith('\n\n')) {
         if (formattedText.endsWith('\n')) {
             formattedText += '\n';
@@ -875,7 +873,6 @@ export function formatImports(
         }
     }
 
-    // Remplacer la section d'imports originale par le texte formaté
     return (
         sourceText.substring(0, fullImportRange.start) +
         formattedText +

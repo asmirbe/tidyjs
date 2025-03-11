@@ -1,14 +1,20 @@
 import { FormatterConfig } from '../types';
 
-// Helper : Function to sort import names by length
+// Helper : Function to sort import names alphabetically and then by length (longest first)
 export function sortImportNamesByLength(names: string[]): string[] {
     return [...names].sort((a, b) => {
-        // Extract actual name without 'type' keyword for length comparison
+        // Extract actual name without 'type' keyword for comparison
         const aName = a.startsWith('type ') ? a.substring(5) : a;
         const bName = b.startsWith('type ') ? b.substring(5) : b;
         
-        // Compare lengths (shortest first)
-        return aName.length - bName.length;
+        // First sort alphabetically
+        const alphabeticalCompare = aName.localeCompare(bName);
+        if (alphabeticalCompare !== 0) {
+            return alphabeticalCompare;
+        }
+        
+        // Then sort by length (longest first)
+        return bName.length - aName.length;
     });
 }
 

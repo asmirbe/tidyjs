@@ -161,12 +161,12 @@ function calculateEffectiveLengthForSorting(importItem: FormattedImport): number
     if (!importItem.isDefaultImport && importItem.hasNamedImports) {
         const namedImports = importItem.importNames;
         if (namedImports.length > 0) {
-            // Optimisation: Éviter de mapper puis de prendre le min
-            let minLength = Number.MAX_SAFE_INTEGER;
+            // Optimisation: Éviter de mapper puis de prendre le max
+            let maxLength = 0;
             for (const name of namedImports) {
-                minLength = Math.min(minLength, name.length);
+                maxLength = Math.max(maxLength, name.length);
             }
-            return minLength === Number.MAX_SAFE_INTEGER ? 0 : minLength;
+            return maxLength;
         }
     }
     
@@ -174,18 +174,18 @@ function calculateEffectiveLengthForSorting(importItem: FormattedImport): number
     if (importItem.isDefaultImport && importItem.hasNamedImports) {
         const namedImports = importItem.importNames.slice(1);
         if (namedImports.length > 0) {
-            // Optimisation: Éviter de mapper puis de prendre le min
-            let minLength = Number.MAX_SAFE_INTEGER;
+            // Optimisation: Éviter de mapper puis de prendre le max
+            let maxLength = importItem.importNames[0].length;
             for (const name of namedImports) {
-                minLength = Math.min(minLength, name.length);
+                maxLength = Math.max(maxLength, name.length);
             }
-            return minLength === Number.MAX_SAFE_INTEGER ? importItem.importNames[0].length : minLength;
+            return maxLength;
         }
         return importItem.importNames[0].length;
     }
     
     // Cas par défaut
-    return 999;
+    return 0;
 }
 
 const getEffectiveLengthForSorting = getMemoizedLength;
@@ -318,46 +318,56 @@ function formatImportItem(
 
 function sortImportsInGroup(imports: FormattedImport[]): FormattedImport[] {
     return imports.sort((a, b) => {
-        // Priorité spéciale pour React dans le groupe Misc
-        if (a.group.name === 'Misc' && b.group.name === 'Misc') {
-            if (a.moduleName === 'react' && b.moduleName !== 'react') {
-                return -1;
+        // Règle 4: Toujours placer les imports de React en premier
+        const aIsReact = a.moduleName === 'react';
+        const bIsReact = b.moduleName === 'react';
+        
+        if (aIsReact && !bIsReact) {
+            return -1;
+        }
+        if (!aIsReact && bIsReact) {
+            return 1;
+        }
+        
+        // Ensuite, les imports de type React
+        const aIsReactType = a.isTypeImport && a.moduleName === 'react';
+        const bIsReactType = b.isTypeImport && b.moduleName === 'react';
+        
+        if (aIsReactType && !bIsReactType) {
+            return -1;
+        }
+        if (!aIsReactType && bIsReactType) {
+            return 1;
+        }
+        
+        // Ensuite, regrouper par chemin similaire (même module)
+        if (a.moduleName !== b.moduleName) {
+            return a.moduleName.localeCompare(b.moduleName);
+        }
+        
+        // Si même module, trier par type d'import
+        if (a.isTypeImport !== b.isTypeImport) {
+            return a.isTypeImport ? 1 : -1;
+        }
+        
+        // Si même type, trier par ordre alphabétique puis par longueur
+        // Pour les imports par défaut
+        if (a.isDefaultImport && b.isDefaultImport) {
+            if (a.importNames[0] !== b.importNames[0]) {
+                // Trier alphabétiquement
+                return a.importNames[0].localeCompare(b.importNames[0]);
             }
-            if (a.moduleName !== 'react' && b.moduleName === 'react') {
-                return 1;
-            }
+            
+            // Si même nom, trier par longueur (plus long en premier)
+            return b.importNames[0].length - a.importNames[0].length;
         }
-
-        // 1. Regrouper par type d'import (default, named, type)
-        // Imports par défaut (sans type) en premier
-        if (!a.isTypeImport && a.isDefaultImport && (!b.isDefaultImport || b.isTypeImport)) {
-            return -1;
-        }
-        if (!b.isTypeImport && b.isDefaultImport && (!a.isDefaultImport || a.isTypeImport)) {
-            return 1;
-        }
-
-        // Imports nommés (sans type) ensuite
-        if (!a.isTypeImport && !a.isDefaultImport && b.isTypeImport) {
-            return -1;
-        }
-        if (!b.isTypeImport && !b.isDefaultImport && a.isTypeImport) {
-            return 1;
-        }
-
-        // Tous les imports de type à la fin
-        if (a.isTypeImport && !b.isTypeImport) {
-            return 1;
-        }
-        if (!a.isTypeImport && b.isTypeImport) {
-            return -1;
-        }
-
-        // Si même catégorie (default, named ou type), trier par longueur de nom
+        
+        // Pour les imports nommés, utiliser la longueur effective
         const aLength = getEffectiveLengthForSorting(a);
         const bLength = getEffectiveLengthForSorting(b);
-
-        return aLength - bLength;
+        
+        // Trier par longueur (plus long en premier)
+        return bLength - aLength;
     });
 }
 

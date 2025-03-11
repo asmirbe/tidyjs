@@ -833,6 +833,11 @@ export function formatImports(
         fullImportRange.start,
         adjustedEnd
     );
+
+    const validation = validateImportSection(importSectionText, config);
+    if (!validation.valid) {
+        throw new Error(validation.message);
+    }
     
     const cleanedImportText = removeCommentsFromImports(importSectionText, config);
 
@@ -888,4 +893,39 @@ export function formatImports(
         formattedText +
         sourceText.substring(adjustedEnd)
     );
+}
+
+function validateImportSection(text: string, config: FormatterConfig): { valid: boolean; message?: string } {
+    const lines = text.split('\n');
+    const invalidLines = [];
+    
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (line === '') continue;
+        
+        const isImportLine = line.startsWith('import');
+        const isCommentLine = line.startsWith('//');
+        const isJSDocComment = line.startsWith('/*') || line.startsWith('*') || line.startsWith('*/');
+        const isImportFragmentLine = config.regexPatterns.importFragment.test(line);
+        const isValidImport = hasImportCharacteristics(line, config);
+        
+        if (!isImportLine && !isCommentLine && !isJSDocComment && 
+            !isImportFragmentLine && !isValidImport && line !== '') {
+            invalidLines.push({ lineNumber: i + 1, content: line });
+            
+            if (invalidLines.length >= 3) {
+                break;
+            }
+        }
+    }
+    
+    if (invalidLines.length > 0) {
+        const examples = invalidLines.map(l => `Line ${l.lineNumber}: "${l.content}"`).join('\n');
+        return {
+            valid: false,
+            message: `Found non-import code in import section:\n${examples}`
+        };
+    }
+    
+    return { valid: true };
 }

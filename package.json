@@ -7,7 +7,7 @@
     "name": "Asmir BELKIC"
   },
   "engines": {
-    "vscode": "^1.98.0"
+    "vscode": "^1.90.0"
   },
   "main": "./dist/extension.js",
   "categories": [
@@ -109,7 +109,7 @@
     "@eslint/js": "^9.22.0",
     "@types/mocha": "^10.0.10",
     "@types/node": "20.x",
-    "@types/vscode": "^1.98.0",
+    "@types/vscode": "^1.90.0",
     "@typescript-eslint/eslint-plugin": "^8.25.0",
     "@typescript-eslint/parser": "^8.25.0",
     "@vscode/test-cli": "^0.0.10",

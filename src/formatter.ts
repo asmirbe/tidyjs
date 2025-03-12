@@ -281,7 +281,7 @@ function formatImportItem(
         hasNamedImports,
     } = importItem;
 
-    // Si aucun nom d'import, c'est un import de module simple
+    // Si aucun nom d'import, c'est un import de module simple (side-effect import)
     if (importNames.length === 0) {
         statements.push(formatSimpleImport(moduleName));
         return;
@@ -318,60 +318,56 @@ function formatImportItem(
 
 function sortImportsInGroup(imports: FormattedImport[]): FormattedImport[] {
     return imports.sort((a, b) => {
-        // Règle 4: Toujours placer les imports de React en premier
+        // First sort side-effect imports to the top
+        const aIsSideEffect = a.importNames.length === 0;
+        const bIsSideEffect = b.importNames.length === 0;
+        
+        if (aIsSideEffect && !bIsSideEffect) return -1;
+        if (!aIsSideEffect && bIsSideEffect) return 1;
+        
+        // Order: default > named > type default > type named
         const aIsReact = a.moduleName === 'react';
         const bIsReact = b.moduleName === 'react';
         
-        if (aIsReact && !bIsReact) {
-            return -1;
-        }
-        if (!aIsReact && bIsReact) {
-            return 1;
+        // Handle React imports first
+        if (aIsReact && !bIsReact) return -1;
+        if (!aIsReact && bIsReact) return 1;
+        
+        if (aIsReact && bIsReact) {
+            // 1. Default imports (non-type)
+            if (a.isDefaultImport && !a.isTypeImport && (!b.isDefaultImport || b.isTypeImport)) return -1;
+            if (b.isDefaultImport && !b.isTypeImport && (!a.isDefaultImport || a.isTypeImport)) return 1;
+            
+            // 2. Named imports (non-type)
+            if (!a.isDefaultImport && !a.isTypeImport && (b.isDefaultImport || b.isTypeImport)) return -1;
+            if (!b.isDefaultImport && !b.isTypeImport && (a.isDefaultImport || a.isTypeImport)) return 1;
+            
+            // 3. Type default imports
+            if (a.isDefaultImport && a.isTypeImport && (!b.isDefaultImport || !b.isTypeImport)) return -1;
+            if (b.isDefaultImport && b.isTypeImport && (!a.isDefaultImport || !a.isTypeImport)) return 1;
+            
+            // 4. Type named imports
+            if (!a.isDefaultImport && a.isTypeImport && b.isDefaultImport) return -1;
+            if (!b.isDefaultImport && b.isTypeImport && a.isDefaultImport) return 1;
         }
         
-        // Ensuite, les imports de type React
-        const aIsReactType = a.isTypeImport && a.moduleName === 'react';
-        const bIsReactType = b.isTypeImport && b.moduleName === 'react';
-        
-        if (aIsReactType && !bIsReactType) {
-            return -1;
-        }
-        if (!aIsReactType && bIsReactType) {
-            return 1;
-        }
-        
-        // Ensuite, regrouper par chemin similaire (même module)
+        // For non-React modules, sort by module name
         if (a.moduleName !== b.moduleName) {
             return a.moduleName.localeCompare(b.moduleName);
         }
         
-        // Si même module, trier par type d'import
+        // Within the same module type, sort by type (non-type first)
         if (a.isTypeImport !== b.isTypeImport) {
             return a.isTypeImport ? 1 : -1;
         }
         
-        // Si même type, trier par ordre alphabétique puis par longueur
-        // Pour les imports par défaut
-        if (a.isDefaultImport && b.isDefaultImport) {
-            if (a.importNames[0] !== b.importNames[0]) {
-                // Trier alphabétiquement
-                return a.importNames[0].localeCompare(b.importNames[0]);
-            }
-            
-            // Si même nom, trier par longueur (plus long en premier)
-            return b.importNames[0].length - a.importNames[0].length;
-        }
-        
-        // Pour les imports nommés, utiliser la longueur effective
+        // Sort by effective length for imports of the same type
         const aLength = getEffectiveLengthForSorting(a);
         const bLength = getEffectiveLengthForSorting(b);
-        
-        // Trier par longueur (plus long en premier)
         return bLength - aLength;
     });
 }
 
-// ...existing code...
 function groupImportsOptimized(
     imports: FormattedImport[]
 ): Map<string, FormattedImport[]> {
@@ -582,6 +578,11 @@ function generateFormattedImportsOptimized(
 
 function hasImportCharacteristics(line: string, config: FormatterConfig): boolean {
     const trimmedLine = line.trim();
+    
+    // Check for side-effect imports
+    if (trimmedLine.match(/^import\s+['"].*['"];$/)) {
+        return true;
+    }
     
     // Vérifier explicitement que ce n'est pas une déclaration de type
     if (trimmedLine.match(config.regexPatterns.typeDeclaration)) {
@@ -903,6 +904,7 @@ function validateImportSection(text: string, config: FormatterConfig): { valid: 
         const line = lines[i].trim();
         if (line === '') continue;
         
+        const isSideEffectImport = line.match(/^import\s+['"].*['"];$/);
         const isImportLine = line.startsWith('import');
         const isCommentLine = line.startsWith('//');
         const isJSDocComment = line.startsWith('/*') || line.startsWith('*') || line.startsWith('*/');
@@ -910,7 +912,7 @@ function validateImportSection(text: string, config: FormatterConfig): { valid: 
         const isValidImport = hasImportCharacteristics(line, config);
         
         if (!isImportLine && !isCommentLine && !isJSDocComment && 
-            !isImportFragmentLine && !isValidImport && line !== '') {
+            !isImportFragmentLine && !isValidImport && !isSideEffectImport && line !== '') {
             invalidLines.push({ lineNumber: i + 1, content: line });
             
             if (invalidLines.length >= 3) {

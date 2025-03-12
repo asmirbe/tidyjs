@@ -1,8 +1,11 @@
-const { loadTestCases } = require('./utils')
-const createMockConfig = require('./constant').createMockConfig;
-const mockVscode = require('./constant').mockVscode;
-const COLORS = require('./constant').COLORS;
-const EMOJI = require('./constant').EMOJI;
+const { 
+  loadTestCases, 
+  createMockConfig, 
+  mockVscode, 
+  COLORS, 
+  EMOJI, 
+  TEST_CONFIG 
+} = require('./constant');
 const Module = require('module');
 const originalRequire = Module.prototype.require;
 
@@ -20,7 +23,14 @@ function printSectionTitle(title, emoji) {
   console.log(`${COLORS.CYAN}${line}${COLORS.RESET}\n`);
 }
 
+/**
+ * Affiche les différences détaillées entre deux chaînes de caractères
+ * @param {string} expected - Le résultat attendu
+ * @param {string} actual - Le résultat obtenu
+ */
 function printDetailedDiff(expected, actual) {
+  if (!TEST_CONFIG.showDetailedDiff) return;
+  
   console.log(`${COLORS.YELLOW}${EMOJI.MAGNIFIER} Analyse détaillée des différences:${COLORS.RESET}`);
   
   const expectedLines = expected.split('\n');
@@ -38,15 +48,15 @@ function printDetailedDiff(expected, actual) {
       console.log(`${COLORS.YELLOW}Ligne ${i + 1}:${COLORS.RESET}`);
       
       if (expectedLine && actualLine) {
-        console.log(`  ${COLORS.GREEN}Attendu: ${COLORS.RESET}"${highlightDifferences(expectedLine, actualLine)}"`);
-        console.log(`  ${COLORS.RED}Obtenu:  ${COLORS.RESET}"${highlightDifferences(actualLine, expectedLine, true)}"`);
+        console.log(`  ${COLORS.GREEN}Attendu: ${COLORS.DIM}"${highlightDifferences(expectedLine, actualLine)}"${COLORS.RESET}`);
+        console.log(`  ${COLORS.RED}Obtenu:  ${COLORS.DIM}"${highlightDifferences(actualLine, expectedLine, true)}"${COLORS.RESET}`);
       } else {
         if (!expectedLine) {
-          console.log(`  ${COLORS.GREEN}Attendu: ${COLORS.RESET}"" ${COLORS.DIM}(ligne absente)${COLORS.RESET}`);
-          console.log(`  ${COLORS.RED}Obtenu:  ${COLORS.RESET}"${actualLine}"`);
+          console.log(`  ${COLORS.GREEN}Attendu: ${COLORS.DIM}"" (ligne absente)${COLORS.RESET}`);
+          console.log(`  ${COLORS.RED}Obtenu:  ${COLORS.DIM}"${actualLine}"${COLORS.RESET}`);
         } else {
-          console.log(`  ${COLORS.GREEN}Attendu: ${COLORS.RESET}"${expectedLine}"`);
-          console.log(`  ${COLORS.RED}Obtenu:  ${COLORS.RESET}"" ${COLORS.DIM}(ligne absente)${COLORS.RESET}`);
+          console.log(`  ${COLORS.GREEN}Attendu: ${COLORS.DIM}"${expectedLine}"${COLORS.RESET}`);
+          console.log(`  ${COLORS.RED}Obtenu:  ${COLORS.DIM}"" (ligne absente)${COLORS.RESET}`);
         }
       }
     }
@@ -57,13 +67,31 @@ function printDetailedDiff(expected, actual) {
   }
 }
 
+/**
+ * Affiche les détails d'un test échoué
+ * @param {Object} testCase - Le cas de test
+ * @param {string} result - Le résultat obtenu
+ * @param {number} testNumber - Le numéro du test
+ */
+function displayTestFailure(testCase, result, testNumber) {
+  console.log(`${COLORS.RED}${EMOJI.FAILURE} Test ${testNumber} échoué: ${testCase.name}${COLORS.RESET}`);
+  console.log(`${COLORS.YELLOW}Input:${COLORS.RESET}`);
+  console.log(`${COLORS.DIM}${testCase.input}${COLORS.RESET}`);
+  console.log(`${COLORS.GREEN}Attendu:${COLORS.RESET}`);
+  console.log(`${COLORS.DIM}${testCase.expected}${COLORS.RESET}`);
+  console.log(`${COLORS.RED}Obtenu:${COLORS.RESET}`);
+  console.log(`${COLORS.DIM}${result}${COLORS.RESET}`);
+  
+  printDetailedDiff(testCase.expected, result);
+}
+
 function highlightDifferences(str1, str2, isActual = false) {
   let result = '';
   const color = isActual ? COLORS.RED : COLORS.GREEN;
   
   for (let i = 0; i < str1.length; i++) {
     if (i >= str2.length || str1[i] !== str2[i]) {
-      result += `${color}${str1[i]}${COLORS.RESET}`;
+      result += `${color}${str1[i]}${COLORS.DIM}`;
     } else {
       result += str1[i];
     }
@@ -72,122 +100,189 @@ function highlightDifferences(str1, str2, isActual = false) {
   return result;
 }
 
+/**
+ * Mesure le temps d'exécution d'une fonction
+ * @param {Function} fn - La fonction à exécuter
+ * @returns {[any, number]} - Le résultat de la fonction et le temps d'exécution en ms
+ */
+function measureExecutionTime(fn) {
+  const startTime = process.hrtime.bigint();
+  let result;
+  
+  try {
+    result = fn();
+    return [result, null, calculateExecutionTime(startTime)];
+  } catch (error) {
+    return [null, error, calculateExecutionTime(startTime)];
+  }
+}
+
+/**
+ * Calcule le temps d'exécution en ms
+ * @param {bigint} startTime - Le temps de début en nanosecondes
+ * @returns {number} - Le temps d'exécution en ms
+ */
+function calculateExecutionTime(startTime) {
+  const endTime = process.hrtime.bigint();
+  return Number(endTime - startTime) / 1_000_000;
+}
+
+/**
+ * Affiche le résultat d'un test
+ * @param {Object} testResult - Le résultat du test
+ * @param {number} executionTimeMs - Le temps d'exécution en ms
+ */
+function displayTestResult(testResult, executionTimeMs) {
+  const { status, number, name, isErrorCase } = testResult;
+  const timeInfo = `${COLORS.DIM}[${executionTimeMs.toFixed(2)}ms]${COLORS.RESET}`;
+  
+  if (status === 'passed') {
+    if (isErrorCase) {
+      console.log(`${COLORS.GREEN}${EMOJI.SUCCESS} Test ${number}: ${name} - Got expected error ${timeInfo}`);
+      
+      const errorLines = testResult.errorMessage.split('\n');
+      errorLines.forEach(line => {
+        console.log(`   ${COLORS.RED}${line}${COLORS.RESET}`);
+      });
+    } else {
+      console.log(`${COLORS.GREEN}${EMOJI.SUCCESS} Test ${number}: ${name} ${timeInfo}`);
+    }
+  } else if (status === 'failed') {
+    if (testResult.expectedError) {
+      console.log(`${COLORS.RED}${EMOJI.FAILURE} Test ${number}: ${name} - Expected error but got result ${timeInfo}`);
+    } else {
+      console.log(`${COLORS.RED}${EMOJI.FAILURE} Test ${number}: ${name} ${timeInfo}`);
+    }
+  }
+}
+
+/**
+ * Exécute tous les tests
+ * @returns {Object} - Les résultats des tests
+ */
 function runTests() {
   process.stdout.write('\x1Bc');
 
-  const testCases = loadTestCases()
-  printSectionTitle('EXECUTING FORMATTING TESTS', EMOJI.ROCKET)
+  const testCases = loadTestCases();
+  printSectionTitle('EXECUTING FORMATTING TESTS', EMOJI.ROCKET);
   
-  const startTime = Date.now()
+  const startTime = Date.now();
   const results = {
-      passed: 0,
-      failed: 0,
-      errors: 0,
-      details: [],
-      performance: []
-  }
+    passed: 0,
+    failed: 0,
+    errors: 0,
+    details: [],
+    performance: []
+  };
 
-  const formatter = require('../out/formatter')
-  const mockConfig = createMockConfig()
+  const formatter = require('../out/formatter');
+  const mockConfig = createMockConfig();
 
   testCases.forEach((testCase, index) => {
-      const testNumber = index + 1
-      const testResult = {
-          name: testCase.name,
-          number: testNumber,
-          status: 'pending',
-          expectedError: testCase.expectedError
-      }
-
-      
-      const fileStartTime = process.hrtime.bigint();
-      
-      try {
-          const result = formatter.formatImports(testCase.input, mockConfig)
-          
-          
-          const fileEndTime = process.hrtime.bigint();
-          const executionTimeMs = Number(fileEndTime - fileStartTime) / 1_000_000;
-          
-          
-          results.performance.push({
-              name: testCase.name,
-              executionTimeMs: executionTimeMs.toFixed(2)
-          });
-          
-          if (testCase.expectedError) {
-              testResult.status = 'failed'
-              testResult.expected = `Error: ${testCase.expectedError}`
-              testResult.actual = result
-              results.failed++
-              console.log(`${COLORS.RED}${EMOJI.FAILURE} Test ${testNumber}: ${testCase.name} - Expected error but got result ${COLORS.DIM}[${executionTimeMs.toFixed(2)}ms]${COLORS.RESET}`)
-          } else if (result === testCase.expected) {
-              testResult.status = 'passed'
-              results.passed++
-              console.log(`${COLORS.GREEN}${EMOJI.SUCCESS} Test ${testNumber}: ${testCase.name} ${COLORS.DIM}[${executionTimeMs.toFixed(2)}ms]${COLORS.RESET}`)
-          } else {
-              testResult.status = 'failed'
-              testResult.input = testCase.input
-              testResult.expected = testCase.expected
-              testResult.actual = result
-              results.failed++
-              console.log(`${COLORS.RED}${EMOJI.FAILURE} Test ${testNumber}: ${testCase.name} ${COLORS.DIM}[${executionTimeMs.toFixed(2)}ms]${COLORS.RESET}`)
-              displayTestFailure(testCase, result, testNumber)
-          }
-      } catch (error) {
-          
-          const fileEndTime = process.hrtime.bigint();
-          const executionTimeMs = Number(fileEndTime - fileStartTime) / 1_000_000;
-          
-          
-          results.performance.push({
-              name: testCase.name,
-              executionTimeMs: executionTimeMs.toFixed(2)
-          });
-          
-          if (testCase.expectedError && error.message.includes(testCase.expectedError)) {
-              testResult.status = 'passed'
-              testResult.isErrorCase = true
-              testResult.errorMessage = error.message
-              results.passed++
-              
-              console.log(`${COLORS.GREEN}${EMOJI.SUCCESS} Test ${testNumber}: ${testCase.name} - Got expected error ${COLORS.DIM}[${executionTimeMs.toFixed(2)}ms]${COLORS.RESET}`)
-              
-              const errorLines = error.message.split('\n');
-              
-              errorLines.forEach(line => {
-                  console.log(`   ${COLORS.RED}${line}${COLORS.RESET}`);
-              });
-          } else {
-              handleTestError(error, testResult, results, testNumber, testCase)
-              console.log(`   ${COLORS.DIM}[${executionTimeMs.toFixed(2)}ms]${COLORS.RESET}`);
-          }
-      }
-
-      results.details.push(testResult)
-  })
-
+    const testNumber = index + 1;
+    const testResult = {
+      name: testCase.name,
+      number: testNumber,
+      status: 'pending',
+      expectedError: testCase.expectedError
+    };
+    
+    const [result, error, executionTimeMs] = measureExecutionTime(() => {
+      return formatter.formatImports(testCase.input, mockConfig);
+    });
+    
+    results.performance.push({
+      name: testCase.name,
+      executionTimeMs: executionTimeMs.toFixed(2)
+    });
+    
+    if (error) {
+      handleTestWithError(error, testCase, testResult, results, testNumber, executionTimeMs);
+    } else {
+      handleTestWithResult(result, testCase, testResult, results, testNumber, executionTimeMs);
+    }
+    
+    displayTestResult(testResult, executionTimeMs);
+    results.details.push(testResult);
+  });
   
   const totalTime = results.performance.reduce((sum, perf) => sum + parseFloat(perf.executionTimeMs), 0);
   const averageTime = totalTime / results.performance.length;
   console.log(`\n${COLORS.BOLD}Temps moyen d'exécution: ${COLORS.DIM}${averageTime.toFixed(2)}ms${COLORS.RESET}`);
   
-  displayTestSummary(results, startTime)
-  return results
+  displayTestSummary(results, startTime);
+  return results;
 }
 
-function handleTestError(error, testResult, results, testNumber, testCase) {
-    testResult.status = 'error'
-    testResult.error = error.message
-    testResult.input = testCase.input
-    testResult.expected = testCase.expected
-    testResult.stack = error.stack
-    results.errors++
+/**
+ * Gère un test qui a généré une erreur
+ * @param {Error} error - L'erreur générée
+ * @param {Object} testCase - Le cas de test
+ * @param {Object} testResult - Le résultat du test
+ * @param {Object} results - Les résultats globaux
+ * @param {number} testNumber - Le numéro du test
+ * @param {number} executionTimeMs - Le temps d'exécution en ms
+ */
+function handleTestWithError(error, testCase, testResult, results, testNumber, executionTimeMs) {
+  if (testCase.expectedError && error.message.includes(testCase.expectedError)) {
+    testResult.status = 'passed';
+    testResult.isErrorCase = true;
+    testResult.errorMessage = error.message;
+    results.passed++;
+  } else {
+    handleTestError(error, testResult, results, testNumber, testCase);
+    console.log(`   ${COLORS.DIM}[${executionTimeMs.toFixed(2)}ms]${COLORS.RESET}`);
+  }
+}
 
-    const formattedStack = error.stack.split('\n').slice(0, 3).join('\n')
-    console.log(`${COLORS.RED}${EMOJI.ERROR} Test ${testNumber}: ${testCase.name}`)
-    console.log(`${COLORS.RED}Error: ${error.message}`)
-    console.log(`${COLORS.DIM}${formattedStack}${COLORS.RESET}\n`)
+/**
+ * Gère un test qui a produit un résultat
+ * @param {string} result - Le résultat du test
+ * @param {Object} testCase - Le cas de test
+ * @param {Object} testResult - Le résultat du test
+ * @param {Object} results - Les résultats globaux
+ * @param {number} testNumber - Le numéro du test
+ * @param {number} executionTimeMs - Le temps d'exécution en ms
+ */
+function handleTestWithResult(result, testCase, testResult, results, testNumber, executionTimeMs) {
+  if (testCase.expectedError) {
+    testResult.status = 'failed';
+    testResult.expected = `Error: ${testCase.expectedError}`;
+    testResult.actual = result;
+    results.failed++;
+  } else if (result === testCase.expected) {
+    testResult.status = 'passed';
+    results.passed++;
+  } else {
+    testResult.status = 'failed';
+    testResult.input = testCase.input;
+    testResult.expected = testCase.expected;
+    testResult.actual = result;
+    results.failed++;
+    displayTestFailure(testCase, result, testNumber);
+  }
+}
+
+/**
+ * Gère une erreur de test
+ * @param {Error} error - L'erreur générée
+ * @param {Object} testResult - Le résultat du test
+ * @param {Object} results - Les résultats globaux
+ * @param {number} testNumber - Le numéro du test
+ * @param {Object} testCase - Le cas de test
+ */
+function handleTestError(error, testResult, results, testNumber, testCase) {
+  testResult.status = 'error';
+  testResult.error = error.message;
+  testResult.input = testCase.input;
+  testResult.expected = testCase.expected;
+  testResult.stack = error.stack;
+  results.errors++;
+
+  const formattedStack = error.stack.split('\n').slice(0, 3).join('\n');
+  console.log(`${COLORS.RED}${EMOJI.ERROR} Test ${testNumber}: ${testCase.name}`);
+  console.log(`${COLORS.RED}Error: ${error.message}`);
+  console.log(`${COLORS.DIM}${formattedStack}${COLORS.RESET}\n`);
 }
 
 function calculateStats(results) {

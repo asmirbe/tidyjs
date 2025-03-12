@@ -99,17 +99,17 @@ function runTests() {
           expectedError: testCase.expectedError
       }
 
-      // Mesure de performance pour chaque fichier
+      
       const fileStartTime = process.hrtime.bigint();
       
       try {
           const result = formatter.formatImports(testCase.input, mockConfig)
           
-          // Calculer le temps d'exécution en millisecondes
+          
           const fileEndTime = process.hrtime.bigint();
           const executionTimeMs = Number(fileEndTime - fileStartTime) / 1_000_000;
           
-          // Stocker les informations de performance
+          
           results.performance.push({
               name: testCase.name,
               executionTimeMs: executionTimeMs.toFixed(2)
@@ -135,11 +135,11 @@ function runTests() {
               displayTestFailure(testCase, result, testNumber)
           }
       } catch (error) {
-          // Calculer le temps d'exécution même en cas d'erreur
+          
           const fileEndTime = process.hrtime.bigint();
           const executionTimeMs = Number(fileEndTime - fileStartTime) / 1_000_000;
           
-          // Stocker les informations de performance
+          
           results.performance.push({
               name: testCase.name,
               executionTimeMs: executionTimeMs.toFixed(2)
@@ -167,7 +167,7 @@ function runTests() {
       results.details.push(testResult)
   })
 
-  // Calculer et afficher la moyenne des temps d'exécution
+  
   const totalTime = results.performance.reduce((sum, perf) => sum + parseFloat(perf.executionTimeMs), 0);
   const averageTime = totalTime / results.performance.length;
   console.log(`\n${COLORS.BOLD}Temps moyen d'exécution: ${COLORS.DIM}${averageTime.toFixed(2)}ms${COLORS.RESET}`);

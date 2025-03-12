@@ -16,7 +16,7 @@ Module.prototype.require = function(...args) {
 function printSectionTitle(title, emoji) {
   const line = '═'.repeat(50);
   console.log(`\n${COLORS.CYAN}${line}${COLORS.RESET}`);
-  console.log(`${COLORS.BOLD}${COLORS.CYAN}${emoji} ${title}${COLORS.RESET}`);
+  console.log(`${COLORS.BOLD}${COLORS.CYAN}${emoji}  ${title}${COLORS.RESET}`);
   console.log(`${COLORS.CYAN}${line}${COLORS.RESET}\n`);
 }
 
@@ -72,6 +72,17 @@ function highlightDifferences(str1, str2, isActual = false) {
   return result;
 }
 
+function createProgressBar(percent, width = 30) {
+  const filledWidth = Math.round(width * percent / 100);
+  const emptyWidth = width - filledWidth;
+  
+  let color = COLORS.RED;
+  if (percent >= 80) color = COLORS.GREEN;
+  else if (percent >= 50) color = COLORS.YELLOW;
+  
+  return `${color}[${'█'.repeat(filledWidth)}${' '.repeat(emptyWidth)}] ${percent.toFixed(1)}%${COLORS.RESET}`;
+}
+
 function runTests() {
   process.stdout.write('\x1Bc');
 
@@ -115,23 +126,28 @@ function runTests() {
               executionTimeMs: executionTimeMs.toFixed(2)
           });
           
+          // Afficher le temps d'exécution avec un code couleur basé sur la performance
+          let timeColor = COLORS.GREEN;
+          if (executionTimeMs > 10) timeColor = COLORS.YELLOW;
+          if (executionTimeMs > 20) timeColor = COLORS.RED;
+          
           if (testCase.expectedError) {
               testResult.status = 'failed'
               testResult.expected = `Error: ${testCase.expectedError}`
               testResult.actual = result
               results.failed++
-              console.log(`${COLORS.RED}${EMOJI.FAILURE} Test ${testNumber}: ${testCase.name} - Expected error but got result ${COLORS.DIM}[${executionTimeMs.toFixed(2)}ms]${COLORS.RESET}`)
+              console.log(`${COLORS.RED}${EMOJI.FAILURE} Test ${testNumber}: ${testCase.name} - Expected error but got result ${timeColor}[${executionTimeMs.toFixed(2)}ms]${COLORS.RESET}`)
           } else if (result === testCase.expected) {
               testResult.status = 'passed'
               results.passed++
-              console.log(`${COLORS.GREEN}${EMOJI.SUCCESS} Test ${testNumber}: ${testCase.name} ${COLORS.DIM}[${executionTimeMs.toFixed(2)}ms]${COLORS.RESET}`)
+              console.log(`${COLORS.GREEN}${EMOJI.SUCCESS} Test ${testNumber}: ${testCase.name} ${timeColor}[${executionTimeMs.toFixed(2)}ms]${COLORS.RESET}`)
           } else {
               testResult.status = 'failed'
               testResult.input = testCase.input
               testResult.expected = testCase.expected
               testResult.actual = result
               results.failed++
-              console.log(`${COLORS.RED}${EMOJI.FAILURE} Test ${testNumber}: ${testCase.name} ${COLORS.DIM}[${executionTimeMs.toFixed(2)}ms]${COLORS.RESET}`)
+              console.log(`${COLORS.RED}${EMOJI.FAILURE} Test ${testNumber}: ${testCase.name} ${timeColor}[${executionTimeMs.toFixed(2)}ms]${COLORS.RESET}`)
               displayTestFailure(testCase, result, testNumber)
           }
       } catch (error) {
@@ -145,13 +161,18 @@ function runTests() {
               executionTimeMs: executionTimeMs.toFixed(2)
           });
           
+          // Afficher le temps d'exécution avec un code couleur basé sur la performance
+          let timeColor = COLORS.GREEN;
+          if (executionTimeMs > 10) timeColor = COLORS.YELLOW;
+          if (executionTimeMs > 20) timeColor = COLORS.RED;
+          
           if (testCase.expectedError && error.message.includes(testCase.expectedError)) {
               testResult.status = 'passed'
               testResult.isErrorCase = true
               testResult.errorMessage = error.message
               results.passed++
               
-              console.log(`${COLORS.GREEN}${EMOJI.SUCCESS} Test ${testNumber}: ${testCase.name} - Got expected error ${COLORS.DIM}[${executionTimeMs.toFixed(2)}ms]${COLORS.RESET}`)
+              console.log(`${COLORS.GREEN}${EMOJI.SUCCESS} Test ${testNumber}: ${testCase.name} - Got expected error ${timeColor}[${executionTimeMs.toFixed(2)}ms]${COLORS.RESET}`)
               
               const errorLines = error.message.split('\n');
               
@@ -160,17 +181,38 @@ function runTests() {
               });
           } else {
               handleTestError(error, testResult, results, testNumber, testCase)
-              console.log(`   ${COLORS.DIM}[${executionTimeMs.toFixed(2)}ms]${COLORS.RESET}`);
+              console.log(`   ${timeColor}[${executionTimeMs.toFixed(2)}ms]${COLORS.RESET}`);
           }
       }
 
       results.details.push(testResult)
   })
 
-  // Calculer et afficher la moyenne des temps d'exécution
+  // Afficher un résumé des performances
+  printSectionTitle('PERFORMANCE SUMMARY', EMOJI.STOPWATCH)
+  
+  // Trier les résultats de performance par temps d'exécution (du plus lent au plus rapide)
+  const sortedPerformance = [...results.performance].sort((a, b) => 
+      parseFloat(b.executionTimeMs) - parseFloat(a.executionTimeMs)
+  );
+  
+  // Afficher les 5 fichiers les plus lents
+  console.log(`${COLORS.BOLD}${COLORS.YELLOW}Top 5 des fichiers les plus lents:${COLORS.RESET}`);
+  for (let i = 0; i < Math.min(5, sortedPerformance.length); i++) {
+      const perf = sortedPerformance[i];
+      let timeColor = COLORS.GREEN;
+      if (parseFloat(perf.executionTimeMs) > 10) timeColor = COLORS.YELLOW;
+      if (parseFloat(perf.executionTimeMs) > 20) timeColor = COLORS.RED;
+      console.log(`${i + 1}. ${perf.name}: ${timeColor}${perf.executionTimeMs}ms${COLORS.RESET}`);
+  }
+  
+  // Calculer et afficher la moyenne
   const totalTime = results.performance.reduce((sum, perf) => sum + parseFloat(perf.executionTimeMs), 0);
   const averageTime = totalTime / results.performance.length;
-  console.log(`\n${COLORS.BOLD}Temps moyen d'exécution: ${COLORS.DIM}${averageTime.toFixed(2)}ms${COLORS.RESET}`);
+  let avgTimeColor = COLORS.GREEN;
+  if (averageTime > 10) avgTimeColor = COLORS.YELLOW;
+  if (averageTime > 20) avgTimeColor = COLORS.RED;
+  console.log(`\n${COLORS.BOLD}Temps moyen: ${avgTimeColor}${averageTime.toFixed(2)}ms${COLORS.RESET}`);
   
   displayTestSummary(results, startTime)
   return results
@@ -191,66 +233,4 @@ function handleTestError(error, testResult, results, testNumber, testCase) {
 }
 
 function calculateStats(results) {
-  const total = results.passed + results.failed + results.errors
-  const successRate = total > 0 ? (results.passed / total) * 100 : 0
-  const barLength = 30
-  const filledBars = Math.round((successRate / 100) * barLength)
-  
-  let barColor = COLORS.RED
-  if (successRate >= 90) {
-      barColor = COLORS.GREEN
-  } else if (successRate >= 50) {
-      barColor = COLORS.YELLOW
-  }
-  
-  const progressBar = `${barColor}[${'█'.repeat(filledBars)}${' '.repeat(barLength - filledBars)}]${COLORS.RESET}`
-
-  const errorCasesPassed = results.details.filter(t => 
-      t.status === 'passed' && t.isErrorCase
-  ).length
-  
-  const regularCasesPassed = results.passed - errorCasesPassed
-
-  return {
-      successRate,
-      display: `⏱️  Duration: ${results.duration}s
-✅ Passed: ${results.passed}
- └─ Error cases: ${errorCasesPassed}
- └─ Regular cases: ${regularCasesPassed}
-❌ Failed: ${results.failed}
-⚠️  Errors: ${results.errors}
-ℹ️  Total: ${total}
-
-Success rate: ${progressBar} ${successRate.toFixed(1)}%`
-  }
-}
-
-const displayTestSummary = (results, startTime) => {
-    printSectionTitle('RÉSUMÉ DES TESTS', EMOJI.CHART)
-    
-    const endTime = Date.now()
-    const duration = (endTime - startTime) / 1000
-    
-    const stats = calculateStats({
-        ...results,
-        duration
-    })
-    
-    console.log(stats.display)
-    
-    if (results.failed === 0 && results.errors === 0) {
-        console.log(`\n${COLORS.GREEN}${EMOJI.SUCCESS} TOUS LES TESTS ONT RÉUSSI !${COLORS.RESET}`)
-    } else {
-        console.log(`\n${COLORS.RED}${EMOJI.FAILURE} CERTAINS TESTS ONT ÉCHOUÉ. Veuillez vérifier les erreurs ci-dessus.${COLORS.RESET}`)
-    }
-    
-    return results
-}
-
-const results = runTests();
-
-Module.prototype.require = originalRequire;
-
-if (results.failed > 0 || results.errors > 0) {
-  process.exit(0);
-}
+ 

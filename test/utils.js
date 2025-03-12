@@ -7,7 +7,6 @@ function loadTestCases() {
   const errorDir = path.join(__dirname, 'fixtures/errors')
   const testCases = []
 
-  // Ensure error directory exists
   if (!fs.existsSync(errorDir)) {
       fs.mkdirSync(errorDir, { recursive: true })
   }
@@ -47,8 +46,6 @@ function loadTestCases() {
   return testCases
 }
 
-
-// Create a complete mock vscode module
 const mockVscode = {
   window: {
     createOutputChannel: (name) => ({
@@ -67,7 +64,6 @@ const mockVscode = {
   workspace: {
     getConfiguration: (section) => ({
       get: (key) => {
-        // Define extension configuration here
         const config = {
           importFormatter: {
             groups: [
@@ -116,7 +112,6 @@ const mockVscode = {
   },
 };
 
-// Create a more comprehensive formatter config with all required properties
 function createMockConfig() {
   return {
     importGroups: [
@@ -155,9 +150,7 @@ function createMockConfig() {
   };
 }
 
-// Helper function to run tests with standardized reporting
 function runTests(testCases, formatterModule) {
-  // If formatter module isn't provided, load it
   const formatter = formatterModule || require("../out/formatter");
   const mockConfig = createMockConfig();
 
@@ -196,8 +189,6 @@ function runTests(testCases, formatterModule) {
         console.log(`Expected:\n${testCase.expected}\n`);
         console.log(`Actual:\n${result}\n`);
 
-        // Show detailed diff to help identify issues
-        console.log("Difference analysis:");
         const expectedLines = testCase.expected.split("\n");
         const actualLines = result.split("\n");
         const maxLines = Math.max(expectedLines.length, actualLines.length);
@@ -241,7 +232,6 @@ function loadFixture(filename) {
   }
 }
 
-// Export all utilities
 module.exports = {
   mockVscode,
   createMockConfig,

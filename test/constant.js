@@ -1,3 +1,6 @@
+const fs = require('fs')
+const path = require('path')
+
 const COLORS = {
   RESET: '\x1b[0m',
   GREEN: '\x1b[32m',
@@ -22,6 +25,11 @@ const EMOJI = {
   CHECK: '✅',
   CROSS: '❌',
   STOPWATCH: '⏱️'
+};
+
+// Configuration des tests
+const TEST_CONFIG = {
+  showDetailedDiff: true // Option pour afficher ou masquer les différences détaillées
 };
 
 const mockVscode = {
@@ -115,5 +123,56 @@ const createMockConfig = () => ({
   }
 });
 
+function loadTestCases() {
+  const inputDir = path.join(__dirname, 'fixtures/input')
+  const expectedDir = path.join(__dirname, 'fixtures/expected')
+  const errorDir = path.join(__dirname, 'fixtures/errors')
+  const testCases = []
 
-module.exports = { mockVscode, createMockConfig, COLORS, EMOJI };
+  if (!fs.existsSync(errorDir)) {
+      fs.mkdirSync(errorDir, { recursive: true })
+  }
+
+  const inputFiles = fs.readdirSync(inputDir)
+      .filter(file => file.endsWith('.tsx'))
+
+  for (const file of inputFiles) {
+      const name = path.basename(file, '.tsx')
+      const input = fs.readFileSync(path.join(inputDir, file), 'utf8')
+      
+      const errorFile = path.join(errorDir, `${name}.tsx`)
+      
+      if (fs.existsSync(errorFile)) {
+          const errorContent = fs.readFileSync(errorFile, 'utf8')
+          const expectedError = errorContent.match(/\/\/\s*(.+)/)
+          if (expectedError) {
+              testCases.push({
+                  name,
+                  input,
+                  expected: null,
+                  expectedError: expectedError[1].trim()
+              })
+          }
+      } else {
+          const expectedFile = path.join(expectedDir, file)
+          if (fs.existsSync(expectedFile)) {
+              testCases.push({
+                  name,
+                  input,
+                  expected: fs.readFileSync(expectedFile, 'utf8')
+              })
+          }
+      }
+  }
+
+  return testCases
+}
+
+module.exports = {
+  EMOJI,
+  COLORS,
+  mockVscode,
+  loadTestCases,
+  createMockConfig,
+  TEST_CONFIG
+};

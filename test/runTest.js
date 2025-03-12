@@ -1,3 +1,4 @@
+const { loadTestCases } = require('./utils')
 const createMockConfig = require('./constant').createMockConfig;
 const mockVscode = require('./constant').mockVscode;
 const COLORS = require('./constant').COLORS;
@@ -114,142 +115,159 @@ function createProgressBar(percent, width = 30) {
  * @param {Array} testCases - Cas de test à exécuter
  * @returns {Object} Résultats des tests
  */
-function runTests(testCases) {
-  printSectionTitle('EXÉCUTION DES TESTS DE FORMATAGE', EMOJI.ROCKET);
-  
-  const startTime = Date.now();
-  
-  const results = {
-    passed: 0,
-    failed: 0,
-    errors: 0,
-    details: []
-  };
 
-  // Charger le module de formatage après avoir simulé vscode
-  const formatter = require('../out/formatter');
-  const mockConfig = createMockConfig();
+function runTests() {
+  process.stdout.write('\x1Bc');
+
+  const testCases = loadTestCases()
+  printSectionTitle('EXECUTING FORMATTING TESTS', EMOJI.ROCKET)
+  
+  const startTime = Date.now()
+  const results = {
+      passed: 0,
+      failed: 0,
+      errors: 0,
+      details: []
+  }
+
+  const formatter = require('../out/formatter')
+  const mockConfig = createMockConfig()
 
   testCases.forEach((testCase, index) => {
-    const testNumber = index + 1;
-    const testResult = {
-      name: testCase.name,
-      number: testNumber,
-      status: 'pending'
-    };
-
-    try {
-      const result = formatter.formatImports(testCase.input, mockConfig);
-      
-      if (result === testCase.expected) {
-        testResult.status = 'passed';
-        results.passed++;
-        console.log(`${COLORS.GREEN}${EMOJI.SUCCESS} Test ${testNumber}: ${testCase.name}${COLORS.RESET}`);
-      } else {
-        testResult.status = 'failed';
-        testResult.input = testCase.input;
-        testResult.expected = testCase.expected;
-        testResult.actual = result;
-        results.failed++;
-        console.log(`${COLORS.RED}${EMOJI.FAILURE} Test ${testNumber}: ${testCase.name}${COLORS.RESET}`);
-        
-        console.log(`\n${COLORS.BOLD}${COLORS.BLUE}Entrée:${COLORS.RESET}`);
-        console.log(`${COLORS.DIM}${testCase.input}${COLORS.RESET}\n`);
-        
-        console.log(`${COLORS.BOLD}${COLORS.GREEN}Attendu:${COLORS.RESET}`);
-        console.log(`${COLORS.DIM}${testCase.expected}${COLORS.RESET}\n`);
-        
-        console.log(`${COLORS.BOLD}${COLORS.RED}Obtenu:${COLORS.RESET}`);
-        console.log(`${COLORS.DIM}${result}${COLORS.RESET}\n`);
-        
-        printDetailedDiff(testCase.expected, result);
+      const testNumber = index + 1
+      const testResult = {
+          name: testCase.name,
+          number: testNumber,
+          status: 'pending',
+          expectedError: testCase.expectedError
       }
-    } catch (error) {
-      testResult.status = 'error';
-      testResult.error = error;
-      results.errors++;
-      console.log(`${COLORS.RED}${EMOJI.ERROR} Test ${testNumber}: ${testCase.name} (Erreur)${COLORS.RESET}`);
-      console.log(`${COLORS.RED}${error.stack || error}${COLORS.RESET}`);
-    }
 
-    results.details.push(testResult);
-  });
+      try {
+          const result = formatter.formatImports(testCase.input, mockConfig)
+          
+          if (testCase.expectedError) {
+              // We expected an error but didn't get one
+              testResult.status = 'failed'
+              testResult.expected = `Error: ${testCase.expectedError}`
+              testResult.actual = result
+              results.failed++
+              console.log(`${COLORS.RED}${EMOJI.FAILURE} Test ${testNumber}: ${testCase.name} - Expected error but got result${COLORS.RESET}`)
+          } else if (result === testCase.expected) {
+              testResult.status = 'passed'
+              results.passed++
+              console.log(`${COLORS.GREEN}${EMOJI.SUCCESS} Test ${testNumber}: ${testCase.name}${COLORS.RESET}`)
+          } else {
+              testResult.status = 'failed'
+              testResult.input = testCase.input
+              testResult.expected = testCase.expected
+              testResult.actual = result
+              results.failed++
+              displayTestFailure(testCase, result, testNumber)
+          }
+      } catch (error) {
+          if (testCase.expectedError && error.message.includes(testCase.expectedError)) {
+              // We got the expected error - this is a pass!
+              testResult.status = 'passed'
+              testResult.isErrorCase = true
+              testResult.errorMessage = error.message
+              results.passed++
+              
+              // Show the test passed
+              console.log(`${COLORS.GREEN}${EMOJI.SUCCESS} Test ${testNumber}: ${testCase.name} - Got expected error${COLORS.RESET}`)
+              
+              // Format the error message with consistent indentation
+              // First, split the error message into lines
+              const errorLines = error.message.split('\n');
+              
+              // Display each line with the same indentation as the check emoji (3 spaces)
+              errorLines.forEach(line => {
+                  console.log(`   ${COLORS.RED}${line}${COLORS.RESET}`);
+              });
+          } else {
+              handleTestError(error, testResult, results, testNumber, testCase)
+          }
+      }
 
-  const endTime = Date.now();
-  const duration = (endTime - startTime) / 1000;
+      results.details.push(testResult)
+  })
 
-  // Afficher un résumé visuel des résultats
-  printSectionTitle('RÉSUMÉ DES TESTS', EMOJI.CHART);
-  
-  const totalTests = testCases.length;
-  const successRate = (results.passed / totalTests) * 100;
-  
-  console.log(`${EMOJI.CLOCK}  Durée: ${COLORS.YELLOW}${duration.toFixed(2)}s${COLORS.RESET}`);
-  console.log(`${EMOJI.CHECK}  Réussis: ${COLORS.GREEN}${results.passed}${COLORS.RESET}`);
-  console.log(`${EMOJI.CROSS}  Échoués: ${COLORS.RED}${results.failed}${COLORS.RESET}`);
-  console.log(`${EMOJI.ERROR}  Erreurs: ${COLORS.YELLOW}${results.errors}${COLORS.RESET}`);
-  console.log(`${EMOJI.INFO}  Total: ${COLORS.BLUE}${totalTests}${COLORS.RESET}`);
-  
-  console.log(`\nTaux de réussite: ${createProgressBar(successRate)}`);
-  
-  // Message final
-  if (results.failed === 0 && results.errors === 0) {
-    console.log(`\n${COLORS.GREEN}${EMOJI.SUCCESS} TOUS LES TESTS ONT RÉUSSI !${COLORS.RESET}`);
-  } else {
-    console.log(`\n${COLORS.RED}${EMOJI.FAILURE} CERTAINS TESTS ONT ÉCHOUÉ. Veuillez vérifier les erreurs ci-dessus.${COLORS.RESET}`);
-  }
-  
-  return results;
+  displayTestSummary(results, startTime)
+  return results
 }
 
-// Cas de test
-const testCases = [
-  {
-    name: 'formatage des imports basiques',
-    input: `import React from 'react';
-import { useState } from 'react';
-import { YpButton } from 'ds';`,
-    expected: `// Misc
-import { useState }  from 'react';
-import React         from 'react';
+function handleTestError(error, testResult, results, testNumber, testCase) {
+    testResult.status = 'error'
+    testResult.error = error.message
+    testResult.input = testCase.input
+    testResult.expected = testCase.expected
+    testResult.stack = error.stack
+    results.errors++
 
-// DS
-import { YpButton }  from 'ds';
+    const formattedStack = error.stack.split('\n').slice(0, 3).join('\n')
+    console.log(`${COLORS.RED}${EMOJI.ERROR} Test ${testNumber}: ${testCase.name}`)
+    console.log(`${COLORS.RED}Error: ${error.message}`)
+    console.log(`${COLORS.DIM}${formattedStack}${COLORS.RESET}\n`)
+}
 
-`
-  },
-  {
-    name: 'formatage des imports de type',
-    input: `import type { FC } from 'react';
-import { useState } from 'react';
-import type { ButtonProps } from 'ds';`,
-    expected: `// Misc
-import type { FC }   from 'react';
-import { useState }  from 'react';
-
-// DS
-import type { ButtonProps }  from 'ds';
-
-`
-  },
-  {
-    name: 'formattage basic',
-    input: `import type {
-    Dispatch,
-    FC,
-    SetStateAction
-} from 'react';`,
-    expected: `// Misc
-import type {
-    Dispatch,
-    FC,
-    SetStateAction
-}                   from 'react';
-
-`
+function calculateStats(results) {
+  const total = results.passed + results.failed + results.errors
+  const successRate = total > 0 ? (results.passed / total) * 100 : 0
+  const barLength = 30
+  const filledBars = Math.round((successRate / 100) * barLength)
+  
+  let barColor = COLORS.RED
+  if (successRate >= 90) {
+      barColor = COLORS.GREEN
+  } else if (successRate >= 50) {
+      barColor = COLORS.YELLOW
   }
-];
-const results = runTests(testCases);
+  
+  const progressBar = `${barColor}[${'█'.repeat(filledBars)}${' '.repeat(barLength - filledBars)}]${COLORS.RESET}`
+
+  // Count error cases and regular cases accurately with our new flag
+  const errorCasesPassed = results.details.filter(t => 
+      t.status === 'passed' && t.isErrorCase
+  ).length
+  
+  const regularCasesPassed = results.passed - errorCasesPassed
+
+  return {
+      successRate,
+      display: `⏱️  Duration: ${results.duration}s
+✅ Passed: ${results.passed}
+ └─ Error cases: ${errorCasesPassed}
+ └─ Regular cases: ${regularCasesPassed}
+❌ Failed: ${results.failed}
+⚠️  Errors: ${results.errors}
+ℹ️  Total: ${total}
+
+Success rate: ${progressBar} ${successRate.toFixed(1)}%`
+  }
+}
+
+const displayTestSummary = (results, startTime) => {
+    printSectionTitle('RÉSUMÉ DES TESTS', EMOJI.CHART)
+    
+    const endTime = Date.now()
+    const duration = (endTime - startTime) / 1000
+    
+    const stats = calculateStats({
+        ...results,
+        duration
+    })
+    
+    console.log(stats.display)
+    
+    if (results.failed === 0 && results.errors === 0) {
+        console.log(`\n${COLORS.GREEN}${EMOJI.SUCCESS} TOUS LES TESTS ONT RÉUSSI !${COLORS.RESET}`)
+    } else {
+        console.log(`\n${COLORS.RED}${EMOJI.FAILURE} CERTAINS TESTS ONT ÉCHOUÉ. Veuillez vérifier les erreurs ci-dessus.${COLORS.RESET}`)
+    }
+    
+    return results
+}
+
+const results = runTests();
 
 // Restaurer la fonction require originale pour éviter d'affecter d'autres modules
 Module.prototype.require = originalRequire;

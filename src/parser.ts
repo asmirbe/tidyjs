@@ -134,8 +134,8 @@ export function parseImports(
                 node.getEnd()
             );
             
-            // Créer l'import principal s'il contient des noms réguliers
-            if (importNames.size > 0) {
+            // Créer l'import principal s'il contient des noms réguliers ou s'il s'agit d'un import de side-effect
+            if (importNames.size > 0 || !node.importClause) {
                 result.push({
                     statement,
                     group: importGroup,

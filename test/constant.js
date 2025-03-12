@@ -27,7 +27,8 @@ const EMOJI = {
   CHART: '📊',
   CLOCK: '⏱️',
   CHECK: '✅',
-  CROSS: '❌'
+  CROSS: '❌',
+  STOPWATCH: '⏱️'
 };
 
 // Création d'un module vscode simulé complet

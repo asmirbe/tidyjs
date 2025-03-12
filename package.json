@@ -78,6 +78,12 @@
           "default": 0,
           "minimum": 0,
           "description": "Number of spaces to add when aligning 'from' keywords in imports"
+        },
+        "tidyimport.maxLineLength": {
+          "type": "number",
+          "default": 150,
+          "minimum": 80,
+          "description": "Maximum line length for import statements. Imports exceeding this length will be split into multiple lines."
         }
       }
     }

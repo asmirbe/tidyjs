@@ -20,7 +20,7 @@ export interface ImportNode {
 
 export interface ImportNameWithComment {
     name: string;
-    comment: string;
+    comment?: string;
 }
 
 export interface FormattedImport {
@@ -54,4 +54,5 @@ export interface FormatterConfig {
         orphanedFragments: RegExp;
         possibleCommentFragment: RegExp;
     };
+    maxLineLength: number;
 }

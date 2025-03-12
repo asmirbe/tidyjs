@@ -15,6 +15,7 @@ const DEFAULT_FORMATTER_CONFIG: FormatterConfig = {
     { name: 'Utils', regex: /^yutils/, order: 5 },
   ],
   alignmentSpacing: 1,
+  maxLineLength: 150,
   regexPatterns: (() => {
     const patterns = {
       importLine: /^\s*import\s+.*?(?:from\s+['"][^'"]+['"])?\s*;?.*$/gm,
@@ -36,7 +37,7 @@ const DEFAULT_FORMATTER_CONFIG: FormatterConfig = {
     }
     
     return compiledRegex as FormatterConfig['regexPatterns'];
-  })()
+  })(),
 };
 
 class ConfigManager {
@@ -123,13 +124,20 @@ class ConfigManager {
       this.config.alignmentSpacing = alignmentSpacing;
       this.eventEmitter.fire({ configKey: 'alignmentSpacing', newValue: alignmentSpacing });
     }
+
+    const maxLineLength = vsConfig.get<number>('maxLineLength');
+    if (typeof maxLineLength === 'number' && maxLineLength > 0) {
+      this.config.maxLineLength = maxLineLength;
+      this.eventEmitter.fire({ configKey: 'maxLineLength', newValue: maxLineLength });
+    }
   }
 
   public getFormatterConfig(): FormatterConfig {
     return {
       importGroups: this.getImportGroups(),
       alignmentSpacing: this.getAlignmentSpacing(),
-      regexPatterns: this.getRegexPatterns()
+      regexPatterns: this.getRegexPatterns(),
+      maxLineLength: this.config.maxLineLength
     };
   }
 }

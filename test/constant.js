@@ -1,9 +1,3 @@
-/**
- * Framework de test amélioré pour les extensions VSCode
- * Cette approche offre une méthode plus robuste pour tester le formateur d'imports
- */
-
-// Couleurs ANSI pour améliorer la lisibilité
 const COLORS = {
   RESET: '\x1b[0m',
   GREEN: '\x1b[32m',
@@ -16,7 +10,6 @@ const COLORS = {
   UNDERLINE: '\x1b[4m'
 };
 
-// Emojis pour une interface plus claire
 const EMOJI = {
   SUCCESS: '✅',
   FAILURE: '❌',
@@ -31,7 +24,6 @@ const EMOJI = {
   STOPWATCH: '⏱️'
 };
 
-// Création d'un module vscode simulé complet
 const mockVscode = {
   window: {
     createOutputChannel: (name) => ({
@@ -50,7 +42,6 @@ const mockVscode = {
   workspace: {
     getConfiguration: (section) => ({
       get: (key) => {
-        // Configuration de l'extension
         const config = {
           importFormatter: {
             groups: [
@@ -99,10 +90,6 @@ const mockVscode = {
   }
 };
 
-/**
- * Crée une configuration complète pour le formateur
- * @returns {Object} Configuration du formateur
- */
 const createMockConfig = () => ({
   importGroups: [
     { name: 'Misc', regex: /^(react|react-.*|lodash|date-fns|classnames|@fortawesome|@reach|uuid|@tanstack|ag-grid-community|framer-motion)$/, order: 0 },

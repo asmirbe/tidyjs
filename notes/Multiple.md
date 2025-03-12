@@ -1,4 +1,4 @@
-### LLM Prompt Task: Improving Import Organization and Alignment
+### List of tasks to improve formatter :
 
 ---
 ✅: Fait
@@ -23,12 +23,12 @@ import AbsenceDsnComponent                            from '@app/dossier/compone
 import AbsenceImportFormComponent                     from '@app/dossier/components/absences/import/AbsenceImportFormComponent';
 ```
 ---
-✅: Fait
+~~✅: Fait~~
 **Task 3: Aligning "from" Keywords**
 - Align the keyword `from` based on the longest import name, followed by one space character.
 - Ensure consistent alignment across all import statements.
 ---
-✅: Fait
+⌛️: En cours
 **Task 4: Import Order Rules**
 - Always place imports  from `react` default first then named, followed by React type imports (`type`), and finally other miscellaneous imports.
 - Example:
@@ -45,10 +45,15 @@ import { debounce }                                   from 'lodash';
 **Task 5: Handling Side-effect Imports**
 - Keep and do not remove side-effect imports (e.g., `import '../../style.css';`).
 ---
+⌛️: En cours
 **Task 6: Line Length Enforcement**
 - Ensure no import line exceeds 150 characters.
 - Make the maximum line length configurable via an option named `tidyimport.maxLineLength`.
+- Add a newline to break the line in 2 lines e.g
 
+```JS
+import AbsenceRecapDetailComponent                    from '@app/dossier/components/absences/recap/AbsenceRecapDetailComponent';
+```
 ---
 ✅: Fait
 **Task 7: Adjusting Import Grouping Regex**

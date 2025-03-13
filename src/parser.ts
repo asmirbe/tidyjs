@@ -55,7 +55,6 @@ function parseNamedImports(
     return { regular: regularImports, types: typeImports };
 }
 
-
 export function parseImports(
     importNodes: ts.ImportDeclaration[],
     sourceFile: ts.SourceFile,

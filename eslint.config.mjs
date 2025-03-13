@@ -17,10 +17,19 @@ export default [
         languageOptions: {
             parser: tsParser,
             parserOptions: {
-                project: "./tsconfig.json",
+                project: "./tsconfig.eslint.json", // Utilise le fichier tsconfig spécifique pour ESLint
                 ecmaVersion: 2022,
                 sourceType: "module",
             },
+            globals: {
+                // Ces globals seront disponibles dans tout le code
+                console: true,
+                process: true,
+                "__dirname": true,
+            }
+        },
+        env: {
+            node: true
         },
         rules: {
             // TypeScript rules
@@ -48,7 +57,7 @@ export default [
             "no-invalid-regexp": "error",
             "no-irregular-whitespace": "error",
             "no-unreachable": "error",
-            "no-console": ["warn", { "allow": ["warn", "error"] }],
+            // "no-console": ["warn", { "allow": ["warn", "error"] }],
 
             // Code style
             "eqeqeq": ["error", "always"],
@@ -78,7 +87,8 @@ export default [
             "node_modules/**",
             "dist/**",
             "out/**",
-            "test/**",
+            "test/**"
+            // Ne pas ignorer le dossier "ignored" pour ESLint
         ]
     }
 ];

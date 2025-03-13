@@ -28,9 +28,6 @@ export default [
                 "__dirname": true,
             }
         },
-        env: {
-            node: true
-        },
         rules: {
             // TypeScript rules
             "@typescript-eslint/no-unused-vars": ["error", { 

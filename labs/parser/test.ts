@@ -1,17 +1,12 @@
-// Exemple d'utilisation
-
-import { writeFileSync } from 'fs';
 import { parseImports, DEFAULT_CONFIG, ParserConfig } from './parser';
-import * as path from 'path';
-
 
 const config: ParserConfig = {
   importGroups: [
-    { name: 'Misc', regex: /^(react|lodash|uuid)$/, order: 0, isDefault: true },
+    { name: 'Misc', regex: /^(lodash|react|uuid)$/, order: 0, isDefault: true },
     { name: 'Composants', regex: /^@components/, order: 1 },
     { name: 'Utils', regex: /^@utils/, order: 2 },
   ],
-  priorityImports: [/^react(-dom)?$/],
+//   priorityImports: [/^react(-dom)?$/],
   patterns: {
     ...DEFAULT_CONFIG.patterns,
     appSubfolderPattern: /@app\/([^/]+)/
@@ -160,14 +155,39 @@ import { getPalette } from 'yutils/colors';
 import {
     conjugate,
     getTextPreview
-}                     from 'yutils/text';`;
-const timestamp = Date.now();
-console.time('Parse imports execution time');
-const startTime = performance.now();
-const results = parseImports(sourceCode, config);
-const endTime = performance.now();
-console.timeEnd('Parse imports execution time');
-// Use __dirname directly which is available in CommonJS modules
-const outputPath = path.resolve(__dirname, `./results/test-${timestamp}.json`);
-writeFileSync(outputPath, JSON.stringify(results, null, 2));
-console.log(`Results written to: ${outputPath}`);
+}                     from 'yutils/text';
+`;
+
+const sourceCode2 = `
+// @app/dossier
+import AbsenceInitFormComponent from '@app/dossier/components/absences/init/AbsenceInitFormComponent';
+import AbsencesFormComponent    from '@app/dossier/components/absences/init/AbsencesFormComponent';
+import AccordFormComponent      from '@app/dossier/components/britania/init/AbsenceInitFormComponent';
+
+import { 
+    AbsenceInitFormComponent, 
+    BritaniaFormComponent,
+    CaledoniaFormComponent
+    DossierFormComponent,
+    AbsencesFormComponent 
+} from '@app/dossier/components/absences/init/AbsenceInitFormComponent';
+
+// @app/alient
+import useUtilisateurSearch from '@app/client/providers/parametrage/utilisateurs/UtilisateurSearchProvider';
+
+// @app/notification
+import { useClientNotification } from '@app/notification/ClientNotificationProvider';
+`;
+
+const run = () => {
+    const timestamp = Date.now();
+    console.time('Parse imports execution time');
+    const results = parseImports(sourceCode2, config);
+    console.log(JSON.stringify(results.groups, null, 2));
+    console.timeEnd('Parse imports execution time');
+    // const outputPath = path.resolve(__dirname, `./results/test-${timestamp}.json`);
+    // writeFileSync(outputPath, JSON.stringify(results, null, 2));
+    // console.log(`Results written to: ${outputPath}`);
+}
+
+run();

@@ -6,7 +6,6 @@ import { configManager } from './utils/config';
 import { logDebug } from './utils/log';
 import { alignFromKeyword, formatSimpleImport, getFromIndex, isCommentLine, isEmptyLine, isSectionComment, sortImportNamesByLength } from './utils/misc';
 
-// Cache pour la memoization des calculs de longueur
 const lengthMemoCache = new Map<string, number>();
 
 function cleanUpLines(lines: string[]): string[] {
@@ -196,7 +195,6 @@ function formatDefaultImport(defaultName: string, moduleName: string, isTypeImpo
         : `import ${defaultName} from '${moduleName}';`;
 }
 
-// Modifier la fonction formatNamedImports pour gérer les commentaires
 function formatNamedImports(
     namedImports: (string | ImportNameWithComment)[], 
     moduleName: string, 
@@ -835,7 +833,7 @@ export function formatImports(
         adjustedEnd
     );
 
-    const validation = validateImportSection(importSectionText, config);
+    const validation = validateImportSection(importSectionText);
     if (!validation.valid) {
         throw new Error(validation.message);
     }
@@ -877,7 +875,7 @@ export function formatImports(
     }
 
     config.importGroups = configManager.getImportGroups();
-    const formattedImports = parseImports(importNodes, sourceFile, config.importGroups);
+    const formattedImports = parseImports(importNodes, sourceFile);
     const groupedImports = groupImportsOptimized(formattedImports);
     let formattedText = generateFormattedImportsOptimized(groupedImports, config);
     
@@ -896,38 +894,104 @@ export function formatImports(
     );
 }
 
-function validateImportSection(text: string, config: FormatterConfig): { valid: boolean; message?: string } {
-    const lines = text.split('\n');
-    const invalidLines = [];
-    
-    for (let i = 0; i < lines.length; i++) {
-        const line = lines[i].trim();
-        if (line === '') continue;
-        
-        const isSideEffectImport = line.match(/^import\s+['"].*['"];$/);
-        const isImportLine = line.startsWith('import');
-        const isCommentLine = line.startsWith('//');
-        const isJSDocComment = line.startsWith('/*') || line.startsWith('*') || line.startsWith('*/');
-        const isImportFragmentLine = config.regexPatterns.importFragment.test(line);
-        const isValidImport = hasImportCharacteristics(line, config);
-        
-        if (!isImportLine && !isCommentLine && !isJSDocComment && 
-            !isImportFragmentLine && !isValidImport && !isSideEffectImport && line !== '') {
-            invalidLines.push({ lineNumber: i + 1, content: line });
-            
-            if (invalidLines.length >= 3) {
-                break;
-            }
+function validateImportSection(text: string): { valid: boolean; message?: string } {
+    // Edge case: empty text is valid
+    if (!text.trim()) {
+      return { valid: true };
+    }
+  
+    try {
+      // Create a temporary source file to parse the text
+      const sourceFile = ts.createSourceFile(
+        'temp.ts',
+        text,
+        ts.ScriptTarget.Latest,
+        true
+      );
+  
+      // Track invalid statements
+      const invalidNodes: { text: string; line: number }[] = [];
+      
+      // Find the line number for a node position
+      const getLineNumber = (pos: number): number => text.substring(0, pos).split('\n').length;
+  
+      // Process each top-level statement
+      sourceFile.statements.forEach(statement => {
+        // Skip import declarations and export statements that re-export
+        if (ts.isImportDeclaration(statement) || 
+            (ts.isExportDeclaration(statement) && statement.moduleSpecifier)) {
+          return;
         }
-    }
-    
-    if (invalidLines.length > 0) {
-        const examples = invalidLines.map(l => `Line ${l.lineNumber}: "${l.content}"`).join('\n');
+        
+        // Allow export type ... from statements (re-exporting types)
+        if (ts.isExportDeclaration(statement) && 
+            statement.isTypeOnly && 
+            statement.moduleSpecifier) {
+          return;
+        }
+  
+        // Only add if it's not inside a comment
+        const fullText = statement.getFullText(sourceFile);
+        const isComment = /^\s*\/\//.test(fullText) || /^\s*\/\*[\s\S]*?\*\/\s*$/.test(fullText);
+  
+        if (!isComment) {
+          invalidNodes.push({
+            text: statement.getText(sourceFile),
+            line: getLineNumber(statement.getStart(sourceFile))
+          });
+        }
+      });
+  
+      if (invalidNodes.length > 0) {
+        const examples = invalidNodes
+          .slice(0, 3)
+          .map(n => `Line ${n.line}: "${n.text}"`)
+          .join('\n');
+          
         return {
-            valid: false,
-            message: `Found non-import code in import section:\n${examples}`
+          valid: false,
+          message: `Found non-import code in import section:\n${examples}`
         };
+      }
+  
+      // Now check for any partial/incomplete imports
+      const fullText = sourceFile.getFullText();
+      // Check for unmatched braces or incomplete imports
+      const unmatchedBraces = (fullText.match(/{/g) ?? []).length !== (fullText.match(/}/g) ?? []).length;
+      const incompleteImport = /import\s+(?!.*?from)/.test(fullText) && !/import\s+['"]/.test(fullText);
+      
+      if (unmatchedBraces ?? incompleteImport) {
+        return {
+          valid: false,
+          message: 'Import section contains incomplete import statements'
+        };
+      }
+  
+      return { valid: true };
+    } catch {
+      // If typescript parser fails, treat as invalid but allow parsing fragments
+      
+      // Fall back to a simple regex check for common multiline import patterns
+      const importLinesRegex = /^(?:\s*import\s|{|\s*}|\s*[a-zA-Z0-9_$]+(?:,|\s+as\s+[a-zA-Z0-9_$]+)?\s*$|\s*\/\/|\s*\/\*|\s*\*|\s*\*\/|\s*$)/m;
+      
+      const lines = text.split('\n');
+      const invalidLines = lines.filter((line) => !importLinesRegex.test(line))
+        .map((line, index) => ({ line: index + 1, text: line.trim() }))
+        .filter(item => item.text); // Filter out empty lines
+      
+      if (invalidLines.length === 0) {
+        // Seems to be just import fragments, which is fine
+        return { valid: true };
+      }
+      
+      const examples = invalidLines
+        .slice(0, 3)
+        .map(l => `Line ${l.line}: "${l.text}"`)
+        .join('\n');
+        
+      return {
+        valid: false,
+        message: `Found potential non-import code in import section:\n${examples}`
+      };
     }
-    
-    return { valid: true };
 }

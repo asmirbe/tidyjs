@@ -1,4 +1,6 @@
+import { writeFileSync } from 'fs';
 import { parseImports, DEFAULT_CONFIG, ParserConfig } from './parser';
+import path from 'path';
 
 const config: ParserConfig = {
   importGroups: [
@@ -179,15 +181,17 @@ import useUtilisateurSearch from '@app/client/providers/parametrage/utilisateurs
 import { useClientNotification } from '@app/notification/ClientNotificationProvider';
 `;
 
+const sourceCode3 = `import{Component1,Component2}from'module';`;
+
 const run = () => {
     const timestamp = Date.now();
     console.time('Parse imports execution time');
-    const results = parseImports(sourceCode2, config);
-    console.log(JSON.stringify(results.groups, null, 2));
+    const results = parseImports(sourceCode3, config);
+    // console.log(JSON.stringify(results.groups, null, 2));
     console.timeEnd('Parse imports execution time');
-    // const outputPath = path.resolve(__dirname, `./results/test-${timestamp}.json`);
-    // writeFileSync(outputPath, JSON.stringify(results, null, 2));
-    // console.log(`Results written to: ${outputPath}`);
+    const outputPath = path.resolve(__dirname, `./results/test-${timestamp}.json`);
+    writeFileSync(outputPath, JSON.stringify(results, null, 2));
+    console.log(`Results written to: ${outputPath}`);
 }
 
 run();

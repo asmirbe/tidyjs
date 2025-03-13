@@ -1,0 +1,758 @@
+{
+  "groups": [
+    {
+      "name": "Misc",
+      "order": 0,
+      "imports": [
+        {
+          "type": "default",
+          "source": "react",
+          "specifiers": [
+            "React"
+          ],
+          "raw": "import React from 'react';",
+          "groupName": "Misc",
+          "isReact": true,
+          "appSubfolder": null
+        },
+        {
+          "type": "named",
+          "source": "react",
+          "specifiers": [
+            "Fragment",
+            "useCallback",
+            "useEffect",
+            "type ChangeEvent",
+            "useMemo",
+            "useRef",
+            "useState"
+          ],
+          "raw": "import {\n    Fragment,\n    useCallback,\n    useEffect,\n    type ChangeEvent,\n    useMemo,\n    useRef,\n    useState\n}                          from 'react';",
+          "groupName": "Misc",
+          "isReact": true,
+          "appSubfolder": null
+        },
+        {
+          "type": "typeNamed",
+          "source": "react",
+          "specifiers": [
+            "ChangeEvent",
+            "FC"
+          ],
+          "raw": "import type {\n    ChangeEvent,\n    FC\n}                          from 'react';",
+          "groupName": "Misc",
+          "isReact": true,
+          "appSubfolder": null
+        },
+        {
+          "type": "default",
+          "source": "classnames",
+          "specifiers": [
+            "cn"
+          ],
+          "raw": "import cn                  from 'classnames';",
+          "groupName": "Misc",
+          "isReact": false,
+          "appSubfolder": null
+        },
+        {
+          "type": "named",
+          "source": "@fortawesome/react-fontawesome",
+          "specifiers": [
+            "FontAwesomeIcon"
+          ],
+          "raw": "import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';",
+          "groupName": "Misc",
+          "isReact": false,
+          "appSubfolder": null
+        },
+        {
+          "type": "named",
+          "source": "@reach/router",
+          "specifiers": [
+            "navigate"
+          ],
+          "raw": "import { navigate }        from '@reach/router';",
+          "groupName": "Misc",
+          "isReact": false,
+          "appSubfolder": null
+        },
+        {
+          "type": "named",
+          "source": "@tanstack/react-table",
+          "specifiers": [
+            "createColumnHelper",
+            "getCoreRowModel",
+            "getFilteredRowModel",
+            "useReactTable"
+          ],
+          "raw": "import {\n    createColumnHelper,\n    getCoreRowModel,\n    getFilteredRowModel,\n    useReactTable\n}                          from '@tanstack/react-table';",
+          "groupName": "Misc",
+          "isReact": false,
+          "appSubfolder": null
+        },
+        {
+          "type": "named",
+          "source": "date-fns",
+          "specifiers": [
+            "addWeeks",
+            "differenceInDays",
+            "eachDayOfInterval",
+            "eachWeekOfInterval",
+            "endOfDay",
+            "format",
+            "getWeek",
+            "isBefore",
+            "isSameDay",
+            "isWeekend",
+            "isWithinInterval",
+            "lastDayOfMonth",
+            "lastDayOfWeek",
+            "parseISO",
+            "startOfDay",
+            "startOfMonth",
+            "subWeeks"
+          ],
+          "raw": "import {\n    addWeeks,\n    differenceInDays,\n    eachDayOfInterval,\n    eachWeekOfInterval,\n    endOfDay,\n    format,\n    getWeek,\n    isBefore,\n    isSameDay,\n    isWeekend,\n    isWithinInterval,\n    lastDayOfMonth,\n    lastDayOfWeek,\n    parseISO,\n    startOfDay,\n    startOfMonth,\n    subWeeks\n}                          from 'date-fns';",
+          "groupName": "Misc",
+          "isReact": false,
+          "appSubfolder": null
+        },
+        {
+          "type": "named",
+          "source": "date-fns/locale",
+          "specifiers": [
+            "fr"
+          ],
+          "raw": "import { fr }              from 'date-fns/locale';",
+          "groupName": "Misc",
+          "isReact": false,
+          "appSubfolder": null
+        },
+        {
+          "type": "named",
+          "source": "lodash",
+          "specifiers": [
+            "filter",
+            "find",
+            "first",
+            "isEmpty",
+            "last",
+            "map",
+            "orderBy"
+          ],
+          "raw": "import {\n    filter,\n    find,\n    first,\n    isEmpty,\n    last,\n    map,\n    orderBy\n}                          from 'lodash';",
+          "groupName": "Misc",
+          "isReact": false,
+          "appSubfolder": null
+        },
+        {
+          "type": "named",
+          "source": "uuid",
+          "specifiers": [
+            "v4 as uuidv4"
+          ],
+          "raw": "import { v4 as uuidv4 }    from 'uuid';\n// DS (Alphabetical order + group DS + aligned from based on longest length name)",
+          "groupName": "Misc",
+          "isReact": false,
+          "appSubfolder": null
+        },
+        {
+          "type": "typeNamed",
+          "source": "@tanstack/react-table",
+          "specifiers": [
+            "Cell",
+            "ColumnDef"
+          ],
+          "raw": "import type {\n    Cell,\n    ColumnDef\n}                          from '@tanstack/react-table';",
+          "groupName": "Misc",
+          "isReact": false,
+          "appSubfolder": null
+        }
+      ]
+    },
+    {
+      "name": "DS",
+      "order": 1,
+      "imports": [
+        {
+          "type": "named",
+          "source": "ds",
+          "specifiers": [
+            "useYpModal",
+            "useYpStepper",
+            "useYpWrapperContext",
+            "YpAlert",
+            "YpButton",
+            "YpConfirmModal",
+            "YpDataTableTimeline",
+            "YpElement",
+            "YpFormModal",
+            "YpInput",
+            "YpPopover",
+            "YpSelect",
+            "YpSkeleton",
+            "YpStepperNew",
+            "YpTag",
+            "YpTooltip",
+            "YpTypography"
+          ],
+          "raw": "import {\n    useYpModal,\n    useYpStepper,\n    useYpWrapperContext,\n    YpAlert,\n    YpButton,\n    YpConfirmModal,\n    YpDataTableTimeline,\n    YpElement,\n    YpFormModal,\n    YpInput,\n    YpPopover,\n    YpSelect,\n    YpSkeleton,\n    YpStepperNew,\n    YpTag,\n    YpTooltip,\n    YpTypography\n}                        from 'ds';\n// @app/client (group @app/client)",
+          "groupName": "DS",
+          "isReact": false,
+          "appSubfolder": null
+        }
+      ]
+    },
+    {
+      "name": "@app/client",
+      "order": 2,
+      "imports": [
+        {
+          "type": "default",
+          "source": "@app/client/providers/parametrage/utilisateurs/UtilisateurSearchProvider",
+          "specifiers": [
+            "useUtilisateurSearch"
+          ],
+          "raw": "import useUtilisateurSearch  from '@app/client/providers/parametrage/utilisateurs/UtilisateurSearchProvider';\n// @app/dossier (Alphabetical order + group @app/dossier + path subfolders alphabetical order order)",
+          "groupName": "@app",
+          "isReact": false,
+          "appSubfolder": "client"
+        }
+      ]
+    },
+    {
+      "name": "@app/dossier",
+      "order": 2,
+      "imports": [
+        {
+          "type": "default",
+          "source": "@app/dossier/components/absences/AbsenceRapportComponent",
+          "specifiers": [
+            "AbsenceRapportComponent"
+          ],
+          "raw": "import AbsenceRapportComponent                        from '@app/dossier/components/absences/AbsenceRapportComponent';",
+          "groupName": "@app/dossier",
+          "isReact": false,
+          "appSubfolder": "dossier"
+        },
+        {
+          "type": "default",
+          "source": "@app/dossier/components/absences/dsn/AbsenceDsnComponent",
+          "specifiers": [
+            "AbsenceDsnComponent"
+          ],
+          "raw": "import AbsenceDsnComponent                            from '@app/dossier/components/absences/dsn/AbsenceDsnComponent';",
+          "groupName": "@app/dossier",
+          "isReact": false,
+          "appSubfolder": "dossier"
+        },
+        {
+          "type": "default",
+          "source": "@app/dossier/components/absences/import/AbsenceImportFormComponent",
+          "specifiers": [
+            "AbsenceImportFormComponent"
+          ],
+          "raw": "import AbsenceImportFormComponent                     from '@app/dossier/components/absences/import/AbsenceImportFormComponent';",
+          "groupName": "@app/dossier",
+          "isReact": false,
+          "appSubfolder": "dossier"
+        },
+        {
+          "type": "default",
+          "source": "@app/dossier/components/absences/init/AbsenceInitFormComponent",
+          "specifiers": [
+            "AbsenceInitFormComponent"
+          ],
+          "raw": "import AbsenceInitFormComponent                       from '@app/dossier/components/absences/init/AbsenceInitFormComponent';",
+          "groupName": "@app/dossier",
+          "isReact": false,
+          "appSubfolder": "dossier"
+        },
+        {
+          "type": "default",
+          "source": "@app/dossier/components/absences/param/AbsenceParamFormComponent",
+          "specifiers": [
+            "AbsenceParamFormComponent"
+          ],
+          "raw": "import AbsenceParamFormComponent                      from '@app/dossier/components/absences/param/AbsenceParamFormComponent';",
+          "groupName": "@app/dossier",
+          "isReact": false,
+          "appSubfolder": "dossier"
+        },
+        {
+          "type": "default",
+          "source": "@app/dossier/components/absences/recap/AbsenceRecapDetailComponent",
+          "specifiers": [
+            "AbsenceRecapDetailComponent"
+          ],
+          "raw": "import AbsenceRecapDetailComponent                    from '@app/dossier/components/absences/recap/AbsenceRecapDetailComponent';",
+          "groupName": "@app/dossier",
+          "isReact": false,
+          "appSubfolder": "dossier"
+        },
+        {
+          "type": "default",
+          "source": "@app/dossier/components/salaries/SalarieCellRenderer",
+          "specifiers": [
+            "SalarieCellRenderer"
+          ],
+          "raw": "import SalarieCellRenderer                            from '@app/dossier/components/salaries/SalarieCellRenderer';",
+          "groupName": "@app/dossier",
+          "isReact": false,
+          "appSubfolder": "dossier"
+        },
+        {
+          "type": "default",
+          "source": "@app/dossier/models/enums/DsnAtStatus",
+          "specifiers": [
+            "DsnAtStatut"
+          ],
+          "raw": "import DsnAtStatut                                    from '@app/dossier/models/enums/DsnAtStatus';",
+          "groupName": "@app/dossier",
+          "isReact": false,
+          "appSubfolder": "dossier"
+        },
+        {
+          "type": "default",
+          "source": "@app/dossier/models/enums/GenerationDsnStatutDepot",
+          "specifiers": [
+            "GenerationDsnStatutDepot"
+          ],
+          "raw": "import GenerationDsnStatutDepot                       from '@app/dossier/models/enums/GenerationDsnStatutDepot';",
+          "groupName": "@app/dossier",
+          "isReact": false,
+          "appSubfolder": "dossier"
+        },
+        {
+          "type": "default",
+          "source": "@app/dossier/models/enums/ModeDemarrageAbsence",
+          "specifiers": [
+            "ModeDemarrageAbsenceEnum"
+          ],
+          "raw": "import ModeDemarrageAbsenceEnum                       from '@app/dossier/models/enums/ModeDemarrageAbsence';",
+          "groupName": "@app/dossier",
+          "isReact": false,
+          "appSubfolder": "dossier"
+        },
+        {
+          "type": "default",
+          "source": "@app/dossier/models/enums/NatureEvenementAbsence",
+          "specifiers": [
+            "NatureEvenementAbsenceEnum"
+          ],
+          "raw": "import NatureEvenementAbsenceEnum                     from '@app/dossier/models/enums/NatureEvenementAbsence';",
+          "groupName": "@app/dossier",
+          "isReact": false,
+          "appSubfolder": "dossier"
+        },
+        {
+          "type": "default",
+          "source": "@app/dossier/models/enums/RegroupementAbsenceStatut",
+          "specifiers": [
+            "RegroupementAbsenceStatutEnum"
+          ],
+          "raw": "import RegroupementAbsenceStatutEnum                  from '@app/dossier/models/enums/RegroupementAbsenceStatut';",
+          "groupName": "@app/dossier",
+          "isReact": false,
+          "appSubfolder": "dossier"
+        },
+        {
+          "type": "default",
+          "source": "@app/dossier/models/enums/StatutRegroupementAbsence",
+          "specifiers": [
+            "StatutRegroupementAbsenceEnum"
+          ],
+          "raw": "import StatutRegroupementAbsenceEnum                  from '@app/dossier/models/enums/StatutRegroupementAbsence';",
+          "groupName": "@app/dossier",
+          "isReact": false,
+          "appSubfolder": "dossier"
+        },
+        {
+          "type": "default",
+          "source": "@app/dossier/providers/absences/import/AbsenceImportProvider",
+          "specifiers": [
+            "useAbsenceImport"
+          ],
+          "raw": "import useAbsenceImport                               from '@app/dossier/providers/absences/import/AbsenceImportProvider';",
+          "groupName": "@app/dossier",
+          "isReact": false,
+          "appSubfolder": "dossier"
+        },
+        {
+          "type": "default",
+          "source": "@app/dossier/providers/absences/RegroupementAbsenceDetailProvider",
+          "specifiers": [
+            "useRegroupementAbsenceDetail"
+          ],
+          "raw": "import useRegroupementAbsenceDetail                   from '@app/dossier/providers/absences/RegroupementAbsenceDetailProvider';",
+          "groupName": "@app/dossier",
+          "isReact": false,
+          "appSubfolder": "dossier"
+        },
+        {
+          "type": "default",
+          "source": "@app/dossier/providers/absences/RegroupementsAbsencesListProvider",
+          "specifiers": [
+            "useRegroupementsAbsencesList"
+          ],
+          "raw": "import useRegroupementsAbsencesList                   from '@app/dossier/providers/absences/RegroupementsAbsencesListProvider';",
+          "groupName": "@app/dossier",
+          "isReact": false,
+          "appSubfolder": "dossier"
+        },
+        {
+          "type": "default",
+          "source": "@app/dossier/providers/dsn/DsnAtActionsProvider",
+          "specifiers": [
+            "useDsnAtActionsProvider"
+          ],
+          "raw": "import useDsnAtActionsProvider                        from '@app/dossier/providers/dsn/DsnAtActionsProvider';",
+          "groupName": "@app/dossier",
+          "isReact": false,
+          "appSubfolder": "dossier"
+        },
+        {
+          "type": "default",
+          "source": "@app/dossier/providers/dsn/DsnAtListProvider",
+          "specifiers": [
+            "useDsnAtListProvider"
+          ],
+          "raw": "import useDsnAtListProvider                           from '@app/dossier/providers/dsn/DsnAtListProvider';",
+          "groupName": "@app/dossier",
+          "isReact": false,
+          "appSubfolder": "dossier"
+        },
+        {
+          "type": "default",
+          "source": "@app/dossier/providers/dsn/DsnAtResumeListProvider",
+          "specifiers": [
+            "useDsnAtResumeListProvider"
+          ],
+          "raw": "import useDsnAtResumeListProvider                     from '@app/dossier/providers/dsn/DsnAtResumeListProvider';",
+          "groupName": "@app/dossier",
+          "isReact": false,
+          "appSubfolder": "dossier"
+        },
+        {
+          "type": "default",
+          "source": "@app/dossier/providers/edp/RapportImportDetailProvider",
+          "specifiers": [
+            "useRapportImportDetail"
+          ],
+          "raw": "import useRapportImportDetail                         from '@app/dossier/providers/edp/RapportImportDetailProvider';",
+          "groupName": "@app/dossier",
+          "isReact": false,
+          "appSubfolder": "dossier"
+        },
+        {
+          "type": "default",
+          "source": "@app/dossier/providers/edp/RapportImportLastProvider",
+          "specifiers": [
+            "useRapportImportLast"
+          ],
+          "raw": "import useRapportImportLast                           from '@app/dossier/providers/edp/RapportImportLastProvider';",
+          "groupName": "@app/dossier",
+          "isReact": false,
+          "appSubfolder": "dossier"
+        },
+        {
+          "type": "default",
+          "source": "@app/dossier/providers/fiches/FichesHistorisationListProvider",
+          "specifiers": [
+            "useFichesHistorisationList"
+          ],
+          "raw": "import useFichesHistorisationList                     from '@app/dossier/providers/fiches/FichesHistorisationListProvider';",
+          "groupName": "@app/dossier",
+          "isReact": false,
+          "appSubfolder": "dossier"
+        },
+        {
+          "type": "named",
+          "source": "@app/dossier/models/enums/AbsenceFilterEnum",
+          "specifiers": [
+            "AbsenceFilterEnum"
+          ],
+          "raw": "import { AbsenceFilterEnum }                          from '@app/dossier/models/enums/AbsenceFilterEnum';",
+          "groupName": "@app/dossier",
+          "isReact": false,
+          "appSubfolder": "dossier"
+        },
+        {
+          "type": "named",
+          "source": "@app/dossier/models/RapportImportModel",
+          "specifiers": [
+            "StatutImportEnum"
+          ],
+          "raw": "import { StatutImportEnum }                           from '@app/dossier/models/RapportImportModel';",
+          "groupName": "@app/dossier",
+          "isReact": false,
+          "appSubfolder": "dossier"
+        },
+        {
+          "type": "named",
+          "source": "@app/dossier/providers/contexts/DossierContextProvider",
+          "specifiers": [
+            "useDossierContext"
+          ],
+          "raw": "import { useDossierContext }                          from '@app/dossier/providers/contexts/DossierContextProvider';",
+          "groupName": "@app/dossier",
+          "isReact": false,
+          "appSubfolder": "dossier"
+        },
+        {
+          "type": "named",
+          "source": "@app/dossier/resources/common/Router",
+          "specifiers": [
+            "moduleRoute as DossierModule"
+          ],
+          "raw": "import { moduleRoute as DossierModule }               from '@app/dossier/resources/common/Router';\n// @app/notification (group @app/notification)",
+          "groupName": "@app/dossier",
+          "isReact": false,
+          "appSubfolder": "dossier"
+        },
+        {
+          "type": "typeDefault",
+          "source": "@app/dossier/models/absences/RegroupementAbsenceModel",
+          "specifiers": [
+            "RegroupementAbsenceModel"
+          ],
+          "raw": "import type RegroupementAbsenceModel                  from '@app/dossier/models/absences/RegroupementAbsenceModel';",
+          "groupName": "@app/dossier",
+          "isReact": false,
+          "appSubfolder": "dossier"
+        },
+        {
+          "type": "typeDefault",
+          "source": "@app/dossier/models/DossierModel",
+          "specifiers": [
+            "DossierModel"
+          ],
+          "raw": "import type DossierModel                              from '@app/dossier/models/DossierModel';",
+          "groupName": "@app/dossier",
+          "isReact": false,
+          "appSubfolder": "dossier"
+        },
+        {
+          "type": "typeDefault",
+          "source": "@app/dossier/models/SalariesAbsencesListModel",
+          "specifiers": [
+            "SalariesAbsencesListModel"
+          ],
+          "raw": "import type SalariesAbsencesListModel                 from '@app/dossier/models/SalariesAbsencesListModel';",
+          "groupName": "@app/dossier",
+          "isReact": false,
+          "appSubfolder": "dossier"
+        },
+        {
+          "type": "typeNamed",
+          "source": "@app/dossier/providers/absences/RegroupementAbsenceDetailProvider",
+          "specifiers": [
+            "TRegroupementAbsenceAdditionals"
+          ],
+          "raw": "import type { TRegroupementAbsenceAdditionals }       from '@app/dossier/providers/absences/RegroupementAbsenceDetailProvider';",
+          "groupName": "@app/dossier",
+          "isReact": false,
+          "appSubfolder": "dossier"
+        },
+        {
+          "type": "typeNamed",
+          "source": "@app/dossier/providers/absences/RegroupementsAbsencesListProvider",
+          "specifiers": [
+            "TRegroupementsAbsencesListAdditionals"
+          ],
+          "raw": "import type { TRegroupementsAbsencesListAdditionals } from '@app/dossier/providers/absences/RegroupementsAbsencesListProvider';",
+          "groupName": "@app/dossier",
+          "isReact": false,
+          "appSubfolder": "dossier"
+        }
+      ]
+    },
+    {
+      "name": "@app/notification",
+      "order": 2,
+      "imports": [
+        {
+          "type": "named",
+          "source": "@app/notification/ClientNotificationProvider",
+          "specifiers": [
+            "useClientNotification"
+          ],
+          "raw": "import { useClientNotification } from '@app/notification/ClientNotificationProvider';\n// @core (Here from is aligned based on the whole group because of useUserContext length)",
+          "groupName": "@app",
+          "isReact": false,
+          "appSubfolder": "notification"
+        }
+      ]
+    },
+    {
+      "name": "@core",
+      "order": 3,
+      "imports": [
+        {
+          "type": "named",
+          "source": "@core/providers/contexts/UserContextProvider",
+          "specifiers": [
+            "useUserContext"
+          ],
+          "raw": "import { useUserContext } from '@core/providers/contexts/UserContextProvider';",
+          "groupName": "@core",
+          "isReact": false,
+          "appSubfolder": null
+        },
+        {
+          "type": "named",
+          "source": "@core/utils/misc",
+          "specifiers": [
+            "getLocationId"
+          ],
+          "raw": "import { getLocationId }  from '@core/utils/misc';\n// @library (group @library)",
+          "groupName": "@core",
+          "isReact": false,
+          "appSubfolder": null
+        },
+        {
+          "type": "typeNamed",
+          "source": "@core/models/ProviderModel",
+          "specifiers": [
+            "TDataProviderReturn",
+            "WsDataModel"
+          ],
+          "raw": "import type {\n    TDataProviderReturn,\n    WsDataModel\n}                         from '@core/models/ProviderModel';",
+          "groupName": "@core",
+          "isReact": false,
+          "appSubfolder": null
+        }
+      ]
+    },
+    {
+      "name": "@library",
+      "order": 4,
+      "imports": [
+        {
+          "type": "named",
+          "source": "@library/utils/dates",
+          "specifiers": [
+            "getDateFormat"
+          ],
+          "raw": "import { getDateFormat }      from '@library/utils/dates';",
+          "groupName": "@library",
+          "isReact": false,
+          "appSubfolder": null
+        },
+        {
+          "type": "named",
+          "source": "@library/utils/search",
+          "specifiers": [
+            "useSearch"
+          ],
+          "raw": "import { useSearch }          from '@library/utils/search';",
+          "groupName": "@library",
+          "isReact": false,
+          "appSubfolder": null
+        },
+        {
+          "type": "named",
+          "source": "@library/utils/styles",
+          "specifiers": [
+            "getPageStyleHeight"
+          ],
+          "raw": "import { getPageStyleHeight } from '@library/utils/styles';",
+          "groupName": "@library",
+          "isReact": false,
+          "appSubfolder": null
+        }
+      ]
+    },
+    {
+      "name": "Utils",
+      "order": 5,
+      "imports": [
+        {
+          "type": "named",
+          "source": "yutils/colors",
+          "specifiers": [
+            "getPalette"
+          ],
+          "raw": "import { getPalette } from 'yutils/colors';",
+          "groupName": "Utils",
+          "isReact": false,
+          "appSubfolder": null
+        },
+        {
+          "type": "named",
+          "source": "yutils/text",
+          "specifiers": [
+            "conjugate",
+            "getTextPreview"
+          ],
+          "raw": "import {\n    conjugate,\n    getTextPreview\n}                     from 'yutils/text';",
+          "groupName": "Utils",
+          "isReact": false,
+          "appSubfolder": null
+        }
+      ]
+    }
+  ],
+  "originalImports": [
+    "import React from 'react';",
+    "import {\n    Fragment,\n    useCallback,\n    useEffect,\n    type ChangeEvent,\n    useMemo,\n    useRef,\n    useState\n}                          from 'react';",
+    "import type {\n    ChangeEvent,\n    FC\n}                          from 'react';",
+    "import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';",
+    "import { navigate }        from '@reach/router';",
+    "import {\n    createColumnHelper,\n    getCoreRowModel,\n    getFilteredRowModel,\n    useReactTable\n}                          from '@tanstack/react-table';",
+    "import type {\n    Cell,\n    ColumnDef\n}                          from '@tanstack/react-table';",
+    "import cn                  from 'classnames';",
+    "import {\n    addWeeks,\n    differenceInDays,\n    eachDayOfInterval,\n    eachWeekOfInterval,\n    endOfDay,\n    format,\n    getWeek,\n    isBefore,\n    isSameDay,\n    isWeekend,\n    isWithinInterval,\n    lastDayOfMonth,\n    lastDayOfWeek,\n    parseISO,\n    startOfDay,\n    startOfMonth,\n    subWeeks\n}                          from 'date-fns';",
+    "import { fr }              from 'date-fns/locale';",
+    "import {\n    filter,\n    find,\n    first,\n    isEmpty,\n    last,\n    map,\n    orderBy\n}                          from 'lodash';",
+    "import { v4 as uuidv4 }    from 'uuid';\n// DS (Alphabetical order + group DS + aligned from based on longest length name)",
+    "import {\n    useYpModal,\n    useYpStepper,\n    useYpWrapperContext,\n    YpAlert,\n    YpButton,\n    YpConfirmModal,\n    YpDataTableTimeline,\n    YpElement,\n    YpFormModal,\n    YpInput,\n    YpPopover,\n    YpSelect,\n    YpSkeleton,\n    YpStepperNew,\n    YpTag,\n    YpTooltip,\n    YpTypography\n}                        from 'ds';\n// @app/client (group @app/client)",
+    "import useUtilisateurSearch  from '@app/client/providers/parametrage/utilisateurs/UtilisateurSearchProvider';\n// @app/dossier (Alphabetical order + group @app/dossier + path subfolders alphabetical order order)",
+    "import AbsenceRapportComponent                        from '@app/dossier/components/absences/AbsenceRapportComponent';",
+    "import AbsenceDsnComponent                            from '@app/dossier/components/absences/dsn/AbsenceDsnComponent';",
+    "import AbsenceImportFormComponent                     from '@app/dossier/components/absences/import/AbsenceImportFormComponent';",
+    "import AbsenceInitFormComponent                       from '@app/dossier/components/absences/init/AbsenceInitFormComponent';",
+    "import AbsenceParamFormComponent                      from '@app/dossier/components/absences/param/AbsenceParamFormComponent';",
+    "import AbsenceRecapDetailComponent                    from '@app/dossier/components/absences/recap/AbsenceRecapDetailComponent';",
+    "import SalarieCellRenderer                            from '@app/dossier/components/salaries/SalarieCellRenderer';",
+    "import type RegroupementAbsenceModel                  from '@app/dossier/models/absences/RegroupementAbsenceModel';",
+    "import type DossierModel                              from '@app/dossier/models/DossierModel';",
+    "import { AbsenceFilterEnum }                          from '@app/dossier/models/enums/AbsenceFilterEnum';",
+    "import DsnAtStatut                                    from '@app/dossier/models/enums/DsnAtStatus';",
+    "import GenerationDsnStatutDepot                       from '@app/dossier/models/enums/GenerationDsnStatutDepot';",
+    "import ModeDemarrageAbsenceEnum                       from '@app/dossier/models/enums/ModeDemarrageAbsence';",
+    "import NatureEvenementAbsenceEnum                     from '@app/dossier/models/enums/NatureEvenementAbsence';",
+    "import RegroupementAbsenceStatutEnum                  from '@app/dossier/models/enums/RegroupementAbsenceStatut';",
+    "import StatutRegroupementAbsenceEnum                  from '@app/dossier/models/enums/StatutRegroupementAbsence';",
+    "import { StatutImportEnum }                           from '@app/dossier/models/RapportImportModel';",
+    "import type SalariesAbsencesListModel                 from '@app/dossier/models/SalariesAbsencesListModel';",
+    "import useAbsenceImport                               from '@app/dossier/providers/absences/import/AbsenceImportProvider';",
+    "import useRegroupementAbsenceDetail                   from '@app/dossier/providers/absences/RegroupementAbsenceDetailProvider';",
+    "import type { TRegroupementAbsenceAdditionals }       from '@app/dossier/providers/absences/RegroupementAbsenceDetailProvider';",
+    "import useRegroupementsAbsencesList                   from '@app/dossier/providers/absences/RegroupementsAbsencesListProvider';",
+    "import type { TRegroupementsAbsencesListAdditionals } from '@app/dossier/providers/absences/RegroupementsAbsencesListProvider';",
+    "import { useDossierContext }                          from '@app/dossier/providers/contexts/DossierContextProvider';",
+    "import useDsnAtActionsProvider                        from '@app/dossier/providers/dsn/DsnAtActionsProvider';",
+    "import useDsnAtListProvider                           from '@app/dossier/providers/dsn/DsnAtListProvider';",
+    "import useDsnAtResumeListProvider                     from '@app/dossier/providers/dsn/DsnAtResumeListProvider';",
+    "import useRapportImportDetail                         from '@app/dossier/providers/edp/RapportImportDetailProvider';",
+    "import useRapportImportLast                           from '@app/dossier/providers/edp/RapportImportLastProvider';",
+    "import useFichesHistorisationList                     from '@app/dossier/providers/fiches/FichesHistorisationListProvider';",
+    "import { moduleRoute as DossierModule }               from '@app/dossier/resources/common/Router';\n// @app/notification (group @app/notification)",
+    "import { useClientNotification } from '@app/notification/ClientNotificationProvider';\n// @core (Here from is aligned based on the whole group because of useUserContext length)",
+    "import type {\n    TDataProviderReturn,\n    WsDataModel\n}                         from '@core/models/ProviderModel';",
+    "import { useUserContext } from '@core/providers/contexts/UserContextProvider';",
+    "import { getLocationId }  from '@core/utils/misc';\n// @library (group @library)",
+    "import { getDateFormat }      from '@library/utils/dates';",
+    "import { useSearch }          from '@library/utils/search';",
+    "import { getPageStyleHeight } from '@library/utils/styles';",
+    "import { getPalette } from 'yutils/colors';",
+    "import {\n    conjugate,\n    getTextPreview\n}                     from 'yutils/text';"
+  ],
+  "appSubfolders": [
+    "client",
+    "dossier",
+    "notification"
+  ]
+}

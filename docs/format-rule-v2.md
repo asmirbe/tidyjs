@@ -9,87 +9,56 @@ Voici une liste complète des règles de formatage des imports :
 - Les groupes sont identifiés par des commentaires de section (ex: `// Core`)
 - Les groupes sont triés selon leur propriété `order` configurée
 
-### 1.2 Ordre à l'intérieur des groupes
-- Les imports à effets de bord (ex: `import 'module';`) sont placés en haut de leur groupe
-- Les imports React ont une priorité spéciale et sont placés en haut de leur groupe
-- Les modules non-React sont ensuite triés alphabétiquement par nom de module
-- Pour les modules du même type, les imports non-type précèdent les imports de type
-- Les imports avec des longueurs effectives plus longues précèdent les plus courts
+### 1.2 Ordre à l'intérieur des groupes (Précision)
+- L'ordre exact des imports dans un groupe est :
+  1. Imports React par défaut (ex: `import React from 'react';`)
+  2. Imports React nommés (ex: `import { useState } from 'react';`)
+  3. Imports React de type par défaut (ex: `import type Test from 'react';`)
+  4. Imports React de type nommés (ex: `import type { Test } from 'react';`)
+  5. Autres imports par défaut, triés alphabétiquement
+  6. Autres imports nommés, triés alphabétiquement
+  7. Autres imports de type par défaut, triés alphabétiquement
+  8. Autres imports de type nommés, triés alphabétiquement
 
-### 1.3 Hiérarchie des types d'imports
-- Pour les imports React: imports par défaut (non-type) → imports nommés (non-type) → imports par défaut de type → imports nommés de type
-- Les imports par défaut précèdent généralement les imports nommés
+### 1.3 Hiérarchie des types d'imports (Précision)
+- La hiérarchie précise des imports est :
+  1. Imports à effets de bord (ex: `import 'module';`)
+  2. Imports par défaut non-type
+  3. Imports nommés non-type
+  4. Imports de type par défaut
+  5. Imports de type nommés
+- Cette hiérarchie s'applique après avoir priorisé les imports React au sein de chaque groupe
 
-## 2. Format et alignement
+### 4.2 Cas spécial React (Précision)
+- Les imports React ont toujours la priorité la plus élevée dans leur groupe
+- Les imports React suivent strictement cet ordre :
+  1. Import par défaut de React (non-type)
+  2. Imports React nommés (non-type)
+  3. Import de type par défaut de React
+  4. Imports de type nommés de React
+- Cette règle prévaut sur toutes les autres règles d'ordre alphabétique
 
-### 2.1 Alignement
-- Le mot-clé `from` est aligné au sein des groupes d'imports
-- Tous les imports d'un groupe ont le même espacement avant `from`
-- L'espacement d'alignement est configurable via `alignmentSpacing`
+### 5.1 Regroupement dynamique des imports (Précision)
+- Les imports correspondant à un modèle de chemin `@app/{sousdossier}/*` sont groupés par sous-dossier
+- Ces groupes sont nommés exactement selon le format `// @app/{sousdossier}`
+- Les groupes dynamiques sont triés alphabétiquement par nom de sous-dossier (ex: `@app/client` avant `@app/dossier` avant `@app/notification`)
+- Au sein de chaque groupe dynamique, les imports suivent toutes les règles standard d'ordre et de formatage (règles 1.2 et 1.3)
 
-### 2.2 Formatage des imports nommés
-- Les imports nommés uniques sont sur une ligne: `import { ElementUnique } from 'module';`
-- Les imports nommés multiples sont sur plusieurs lignes avec une indentation de 4 espaces:
-  ```typescript
-  import {
-      PremierElement,
-      DeuxiemeElement
-  } from 'module';
-  ```
-- Les imports nommés sont triés par longueur (du plus court au plus long)
+### 6. Commentaires de section par défaut (Nouvelle règle)
+- Les imports qui ne correspondent pas aux groupes dynamiques ou prédéfinis sont placés dans un groupe par défaut nommé `// Misc`
+- Les imports depuis des bibliothèques de design system (comme 'ds') sont regroupés sous le commentaire de section `// DS`
+- Ces commentaires de section sont toujours présents, même s'il n'y a qu'un seul import dans le groupe
 
-### 2.3 Gestion des imports par défaut + nommés
-- Les imports par défaut avec imports nommés sont divisés en déclarations séparées:
-  ```typescript
-  import NomParDefaut from 'module';
-  import { ElementNomme1, ElementNomme2 } from 'module';
-  ```
+### 7. Alignement précis (Précision pour règle 2.1)
+- Dans chaque groupe, tous les mots-clés `from` doivent être alignés sur la même colonne
+- L'espacement entre la fin de la partie import et le mot-clé `from` est réalisé avec des espaces
+- L'alignement doit s'adapter à l'import le plus long de chaque groupe individuel
+- Lorsqu'un import a plusieurs éléments nommés, l'accolade fermante doit être alignée avec les autres identifiants d'import
 
-### 2.4 Imports de type
-- Les imports de type utilisent la syntaxe `import type`
-- Les imports de type par défaut et les imports de type nommés sont séparés
-- Le même formatage multiligne s'applique aux imports de type avec plusieurs éléments
 
-## 3. Espacement et séparation
+In-fine le parser doit fournir une structure d'imports hautement organisée et cohérente avec un regroupement visuel clair et un alignement qui rend le code plus lisible.
 
-### 3.1 Séparation des groupes
-- Chaque groupe d'imports est séparé par une ligne vide
-
-### 3.2 Gestion des commentaires
-- Les commentaires de section sont préservés (ex: `// Core`)
-- Les commentaires en ligne dans les imports sont supprimés
-- Les commentaires dupliqués sont éliminés
-
-### 3.3 Formatage final
-- Les lignes vides consécutives sont réduites à une seule ligne vide
-- Une ligne vide finale est ajoutée après tous les imports pour les séparer du reste du code
-
-## 4. Traitements spéciaux
-
-### 4.1 Imports dupliqués
-- Les imports dupliqués pour le même module sont fusionnés
-
-### 4.2 Cas spécial React
-- Les imports React ont des règles d'ordre spéciales
-
-### 4.3 Imports à effets de bord
-- Les imports simples sans liaisons (ex: `import 'module';`) sont conservés en haut de leur groupe
-
-### 4.3 Imports nommées type
-- Les import nomées de type sont exporté afin de dossicier les imports type des autres imports.
-
-Exemple : 
-```TS
-import {
-   React,
-   type FC // Doit etre exporté dans une ligne a part avec les autres imports de type de react.
-} from 'raect';
-// Résultat souhaité :
-import { React }   from 'react';
-import type { FC } from 'react'
-```
-
-Ce formateur crée une structure d'imports hautement organisée et cohérente avec un regroupement visuel clair et un alignement qui rend le code plus lisible.
+Ensuite la parser passe les infos au `foramtter.ts` qui va s'occuper de faire les traitement de string pour aligner tous les imports selon les régles strict.
 
 ## 5. Détails techniques
 

@@ -6,6 +6,7 @@ import { configManager } from './utils/config';
 import { logDebug } from './utils/log';
 import { alignFromKeyword, formatSimpleImport, getFromIndex, isCommentLine, isEmptyLine, isSectionComment, sortImportNamesByLength } from './utils/misc';
 
+// Cache pour la memoization des calculs de longueur
 const lengthMemoCache = new Map<string, number>();
 
 function cleanUpLines(lines: string[]): string[] {
@@ -195,6 +196,7 @@ function formatDefaultImport(defaultName: string, moduleName: string, isTypeImpo
         : `import ${defaultName} from '${moduleName}';`;
 }
 
+// Modifier la fonction formatNamedImports pour gérer les commentaires
 function formatNamedImports(
     namedImports: (string | ImportNameWithComment)[], 
     moduleName: string, 
@@ -875,7 +877,7 @@ export function formatImports(
     }
 
     config.importGroups = configManager.getImportGroups();
-    const formattedImports = parseImports(importNodes, sourceFile);
+    const formattedImports = parseImports(importNodes, sourceFile, config.importGroups);
     const groupedImports = groupImportsOptimized(formattedImports);
     let formattedText = generateFormattedImportsOptimized(groupedImports, config);
     

@@ -14,17 +14,15 @@ type TypeOrder = {
 
 type SourcePatterns = {
   appSubfolderPattern?: RegExp; // Regex pour détecter les sous-dossiers @app
-  reactSourcePattern?: RegExp;  // Regex pour identifier les sources React
 };
 
 type ParserConfig = {
   importGroups: ConfigImportGroup[];
   defaultGroupName?: string;    // Nom du groupe par défaut (si non spécifié, on utilise le premier groupe avec isDefault=true)
   typeOrder?: TypeOrder;        // Ordre des types d'imports
-  reactTypeOrder?: TypeOrder;   // Ordre spécifique pour les imports React
+  TypeOrder?: TypeOrder;   // Ordre spécifique pour les imports React
   patterns?: SourcePatterns;    // Patterns pour classification des sources
   priorityImports?: RegExp[];   // Sources qui ont toujours priorité dans leur groupe
-  makePriorityFirstElementInGroup?: boolean;
 };
 
 /**
@@ -34,7 +32,7 @@ type ImportType = 'default' | 'named' | 'typeDefault' | 'typeNamed' | 'sideEffec
 type ImportSource = string;
 type ImportSpecifier = string;
 
-interface ParsedImport {
+export interface ParsedImport {
   type: ImportType;
   source: ImportSource;
   specifiers: ImportSpecifier[];
@@ -62,7 +60,7 @@ const DEFAULT_CONFIG: Partial<ParserConfig> = {
     'typeDefault': 3,
     'typeNamed': 4
   },
-  reactTypeOrder: {
+  TypeOrder: {
     'default': 0,
     'named': 1,
     'typeDefault': 2,
@@ -70,8 +68,7 @@ const DEFAULT_CONFIG: Partial<ParserConfig> = {
     'sideEffect': 4
   },
   patterns: {
-    appSubfolderPattern: /@app\/([^/]+)/,
-    reactSourcePattern: /^react(-.*)?$/
+    appSubfolderPattern: /@app\/([^/]+)/
   }
 };
 
@@ -82,7 +79,7 @@ class ImportParser {
   private readonly config: ParserConfig;
   private readonly defaultGroupName: string;
   private readonly typeOrder: TypeOrder;
-  private readonly reactTypeOrder: TypeOrder;
+  private readonly TypeOrder: TypeOrder;
   private readonly patterns: SourcePatterns;
   private readonly priorityImportPatterns: RegExp[];
   
@@ -92,8 +89,8 @@ class ImportParser {
     // Fusionner la configuration fournie avec les valeurs par défaut
     this.config = {
       ...config,
-      typeOrder: { ...(DEFAULT_CONFIG.typeOrder as TypeOrder), ...config.typeOrder } as TypeOrder,
-      reactTypeOrder: { ...(DEFAULT_CONFIG.reactTypeOrder as TypeOrder), ...config.reactTypeOrder } as TypeOrder,
+      typeOrder: { ...(DEFAULT_CONFIG.typeOrder as TypeOrder), ...(config.typeOrder || {}) } as TypeOrder,
+      TypeOrder: { ...(DEFAULT_CONFIG.TypeOrder as TypeOrder), ...(config.TypeOrder || {}) } as TypeOrder,
       patterns: { ...DEFAULT_CONFIG.patterns, ...config.patterns }
     };
     
@@ -108,7 +105,7 @@ class ImportParser {
     }
     
     this.typeOrder = this.config.typeOrder as TypeOrder;
-    this.reactTypeOrder = this.config.reactTypeOrder as TypeOrder;
+    this.TypeOrder = this.config.TypeOrder as TypeOrder;
     this.patterns = this.config.patterns as SourcePatterns;
     this.priorityImportPatterns = this.config.priorityImports || [];
   }
@@ -295,16 +292,31 @@ class ImportParser {
   }
 
   /**
-   * Vérifie si une source est prioritaire dans son groupe (comme React)
+   * Vérifie si une source est prioritaire dans son groupe en fonction des règles configurées
    */
   private isSourcePriority(source: string): boolean {
-    // Vérifier si la source correspond à un pattern React configuré
-    if (this.patterns.reactSourcePattern && this.patterns.reactSourcePattern.test(source)) {
-      return true;
+    // Si des patterns de priorité explicites sont définis, ils ont la priorité absolue
+    if (this.priorityImportPatterns.length > 0) {
+      return this.priorityImportPatterns.some(pattern => pattern.test(source));
     }
     
-    // Vérifier dans les patterns de priorité configurés
-    return this.priorityImportPatterns.some(pattern => pattern.test(source));
+    // Sinon, chercher le groupe par défaut et vérifier si la source correspond au premier élément de sa regex
+    const defaultGroup = this.config.importGroups.find(group => group.isDefault);
+    if (defaultGroup) {
+      // Extraire le premier élément de la regex comme prioritaire
+      // Pour une regex comme /^(react|lodash|uuid)$/, on veut extraire "react"
+      const regexStr = defaultGroup.regex.toString();
+      const match = regexStr.match(/\(\s*([^|)]+)/);
+      if (match && match[1]) {
+        // Nettoyer l'expression (enlever ^ ou autres caractères spéciaux)
+        const firstPattern = match[1].replace(/[^a-zA-Z0-9\-_]/g, '');
+        // Vérifier si la source correspond à ce premier élément
+        return new RegExp(`^${firstPattern}`).test(source);
+      }
+    }
+    
+    // Si aucune des conditions ci-dessus n'est remplie, pas de priorité
+    return false;
   }
 
   /**
@@ -412,7 +424,6 @@ class ImportParser {
 
     // Pour chaque groupe, trier les imports selon les règles spécifiées
     groupMap.forEach((importsInGroup, groupName) => {
-      console.log('groupName', groupName);
       groupMap.set(groupName, this.sortImportsWithinGroup(importsInGroup));
     });
 
@@ -475,7 +486,7 @@ class ImportParser {
       // Si les deux sont des imports prioritaires, appliquer l'ordre spécifique (ex: React)
       if (a.isPriority && b.isPriority) {
         if (a.type !== b.type) {
-          return this.reactTypeOrder[a.type] - this.reactTypeOrder[b.type];
+          return this.TypeOrder[a.type] - this.TypeOrder[b.type];
         }
       }
       

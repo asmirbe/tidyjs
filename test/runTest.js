@@ -350,8 +350,8 @@ Module.prototype.require = originalRequire;
 const total = results.passed + results.failed + results.errors;
 const successRate = total > 0 ? (results.passed / total) * 100 : 0;
 
-// Vérifier si le taux de réussite est d'au moins 90%
-if (successRate < 90) {
+// Vérifier si le taux de réussite est d'au moins 9X%
+if (successRate < 95) {
   console.log(`\n${COLORS.RED}${EMOJI.ERROR} ERREUR: Le taux de réussite (${successRate.toFixed(1)}%) est inférieur à 90%.${COLORS.RESET}`);
   console.log(`${COLORS.RED}La couverture des tests n'est pas suffisante pour continuer.${COLORS.RESET}`);
   process.exit(1);

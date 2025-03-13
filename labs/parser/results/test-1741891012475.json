@@ -1,0 +1,25 @@
+{
+  "groups": [
+    {
+      "name": "Misc",
+      "order": 0,
+      "imports": [
+        {
+          "type": "named",
+          "source": "module",
+          "specifiers": [
+            "Component1 Component2"
+          ],
+          "raw": "import { Component1 Component2 } from 'module';",
+          "groupName": "Misc",
+          "isPriority": false,
+          "appSubfolder": null
+        }
+      ]
+    }
+  ],
+  "originalImports": [
+    "import { Component1 Component2 } from 'module';"
+  ],
+  "appSubfolders": []
+}

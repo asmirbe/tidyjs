@@ -204,7 +204,7 @@ class ImportParser {
       
       if (namedMatch) {
         // Traiter chaque spécificateur individuellement pour détecter les types inline
-        const rawSpecifiers = namedMatch[1].split(',').map(s => s.trim());
+        const rawSpecifiers = namedMatch[1].split(/,|\n/).map(s => s.trim()).filter(s => s !== '');
         
         // Séparer les specifiers normaux des specifiers de type
         const regularSpecifiers: string[] = [];

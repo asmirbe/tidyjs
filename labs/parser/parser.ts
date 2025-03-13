@@ -1,14 +1,30 @@
 /**
- * Types de configuration pour le parser d'import
+ * Types de configuration avancée pour le parser d'import
  */
 type ConfigImportGroup = {
   name: string;
   regex: RegExp;
   order: number;
+  isDefault?: boolean; // Indique si ce groupe est utilisé par défaut pour les imports non classifiés
+};
+
+type TypeOrder = {
+  [key in ImportType]: number;
+};
+
+type SourcePatterns = {
+  appSubfolderPattern?: RegExp; // Regex pour détecter les sous-dossiers @app
+  reactSourcePattern?: RegExp;  // Regex pour identifier les sources React
 };
 
 type ParserConfig = {
   importGroups: ConfigImportGroup[];
+  defaultGroupName?: string;    // Nom du groupe par défaut (si non spécifié, on utilise le premier groupe avec isDefault=true)
+  typeOrder?: TypeOrder;        // Ordre des types d'imports
+  reactTypeOrder?: TypeOrder;   // Ordre spécifique pour les imports React
+  patterns?: SourcePatterns;    // Patterns pour classification des sources
+  priorityImports?: RegExp[];   // Sources qui ont toujours priorité dans leur groupe
+  makePriorityFirstElementInGroup?: boolean;
 };
 
 /**
@@ -24,7 +40,7 @@ interface ParsedImport {
   specifiers: ImportSpecifier[];
   raw: string;
   groupName: string | null;
-  isReact: boolean;
+  isPriority: boolean;
   appSubfolder: string | null;
 }
 
@@ -35,15 +51,66 @@ interface ImportGroup {
 }
 
 /**
+ * Configuration par défaut pour le parser
+ */
+const DEFAULT_CONFIG: Partial<ParserConfig> = {
+  defaultGroupName: 'Misc',
+  typeOrder: {
+    'sideEffect': 0,
+    'default': 1,
+    'named': 2,
+    'typeDefault': 3,
+    'typeNamed': 4
+  },
+  reactTypeOrder: {
+    'default': 0,
+    'named': 1,
+    'typeDefault': 2,
+    'typeNamed': 3,
+    'sideEffect': 4
+  },
+  patterns: {
+    appSubfolderPattern: /@app\/([^/]+)/,
+    reactSourcePattern: /^react(-.*)?$/
+  }
+};
+
+/**
  * Classe principale pour le parser d'imports
  */
 class ImportParser {
   private readonly config: ParserConfig;
+  private readonly defaultGroupName: string;
+  private readonly typeOrder: TypeOrder;
+  private readonly reactTypeOrder: TypeOrder;
+  private readonly patterns: SourcePatterns;
+  private readonly priorityImportPatterns: RegExp[];
+  
   private appSubfolders: Set<string>;
 
   constructor(config: ParserConfig) {
-    this.config = config;
+    // Fusionner la configuration fournie avec les valeurs par défaut
+    this.config = {
+      ...config,
+      typeOrder: { ...(DEFAULT_CONFIG.typeOrder as TypeOrder), ...config.typeOrder } as TypeOrder,
+      reactTypeOrder: { ...(DEFAULT_CONFIG.reactTypeOrder as TypeOrder), ...config.reactTypeOrder } as TypeOrder,
+      patterns: { ...DEFAULT_CONFIG.patterns, ...config.patterns }
+    };
+    
     this.appSubfolders = new Set<string>();
+    
+    // Déterminer le groupe par défaut
+    if (config.defaultGroupName) {
+      this.defaultGroupName = config.defaultGroupName;
+    } else {
+      const defaultGroup = config.importGroups.find(g => g.isDefault);
+      this.defaultGroupName = defaultGroup ? defaultGroup.name : 'Misc';
+    }
+    
+    this.typeOrder = this.config.typeOrder as TypeOrder;
+    this.reactTypeOrder = this.config.reactTypeOrder as TypeOrder;
+    this.patterns = this.config.patterns as SourcePatterns;
+    this.priorityImportPatterns = this.config.priorityImports || [];
   }
 
   /**
@@ -71,6 +138,9 @@ class ImportParser {
       }
     }
     
+    // Fusionner les imports de même type et même source
+    parsedImports = this.mergeImports(parsedImports);
+    
     // Organiser les imports en groupes
     const groups = this.organizeImportsIntoGroups(parsedImports);
     
@@ -90,20 +160,21 @@ class ImportParser {
     const sourceMatch = importStmt.match(/from\s+['"]([^'"]+)['"]/);
     const source = sourceMatch ? sourceMatch[1] : importStmt.match(/import\s+['"]([^'"]+)['"]/)?.[1] ?? '';
     
-    // Vérifier si c'est un import React
-    const isReact = source === 'react';
+    // Vérifier si c'est un import prioritaire (ex: React)
+    const isPriority = this.isSourcePriority(source);
     
     // Déterminer le groupe auquel appartient cet import
     const groupName = this.determineGroupName(source);
     
     // Détecter les sous-dossiers @app
-    const appSubfolderPattern = /@app\/([^/]+)/;
-    const appSubfolderMatch = source.match(appSubfolderPattern);
     let appSubfolder: string | null = null;
     
-    if (appSubfolderMatch?.[1]) {
-      appSubfolder = appSubfolderMatch[1];
-      this.appSubfolders.add(appSubfolder);
+    if (this.patterns.appSubfolderPattern) {
+      const appSubfolderMatch = source.match(this.patterns.appSubfolderPattern);
+      if (appSubfolderMatch?.[1]) {
+        appSubfolder = appSubfolderMatch[1];
+        this.appSubfolders.add(appSubfolder);
+      }
     }
     
     // Extraire les specifiers (ce qui est importé)
@@ -163,7 +234,7 @@ class ImportParser {
               specifiers: [defaultSpecifier],
               raw: importStmt,
               groupName,
-              isReact,
+              isPriority,
               appSubfolder
             });
           }
@@ -176,7 +247,7 @@ class ImportParser {
               specifiers: regularSpecifiers,
               raw: importStmt,
               groupName,
-              isReact,
+              isPriority,
               appSubfolder
             });
           }
@@ -188,7 +259,7 @@ class ImportParser {
             specifiers: typeSpecifiers,
             raw: importStmt,
             groupName,
-            isReact,
+            isPriority,
             appSubfolder
           });
           
@@ -218,24 +289,81 @@ class ImportParser {
       specifiers,
       raw: importStmt,
       groupName,
-      isReact,
+      isPriority,
       appSubfolder
     };
+  }
+
+  /**
+   * Vérifie si une source est prioritaire dans son groupe (comme React)
+   */
+  private isSourcePriority(source: string): boolean {
+    // Vérifier si la source correspond à un pattern React configuré
+    if (this.patterns.reactSourcePattern && this.patterns.reactSourcePattern.test(source)) {
+      return true;
+    }
+    
+    // Vérifier dans les patterns de priorité configurés
+    return this.priorityImportPatterns.some(pattern => pattern.test(source));
+  }
+
+  /**
+   * Fusionne les imports de même type et même source
+   * @param imports Les imports à fusionner
+   * @returns Les imports fusionnés
+   */
+  private mergeImports(imports: ParsedImport[]): ParsedImport[] {
+    // Map pour stocker les imports fusionnés par clé (type + source)
+    const mergedImportsMap = new Map<string, ParsedImport>();
+    
+    for (const importObj of imports) {
+      // Créer une clé unique basée sur le type et la source
+      const key = `${importObj.type}:${importObj.source}`;
+      
+      if (mergedImportsMap.has(key)) {
+        // Si un import de même type et source existe déjà, fusionner les specifiers
+        const existingImport = mergedImportsMap.get(key)!;
+        
+        // Créer un ensemble pour éliminer les doublons
+        const specifiersSet = new Set<string>([
+          ...existingImport.specifiers,
+          ...importObj.specifiers
+        ]);
+        
+        // Mise à jour des specifiers sans doublon
+        existingImport.specifiers = Array.from(specifiersSet).sort();
+        
+        // Conserver la raw declaration la plus complète (la plus longue en général)
+        if (importObj.raw.length > existingImport.raw.length) {
+          existingImport.raw = importObj.raw;
+        }
+      } else {
+        // Sinon, ajouter le nouvel import
+        mergedImportsMap.set(key, {
+          ...importObj,
+          // Trier les specifiers par ordre alphabétique
+          specifiers: [...importObj.specifiers].sort()
+        });
+      }
+    }
+    
+    // Convertir la map en tableau
+    return Array.from(mergedImportsMap.values());
   }
 
   /**
    * Détermine le nom du groupe pour un import en fonction de son module source
    */
   private determineGroupName(source: string): string {
-    // Vérifier d'abord dans les groupes configurés
+    // Vérifier dans les groupes configurés
     for (const group of this.config.importGroups) {
       if (group.regex.test(source)) {
         return group.name;
       }
     }
     
-    // Par défaut, utiliser "Misc"
-    return 'Misc';
+    // Par défaut, utiliser le groupe par défaut configuré
+    return this.defaultGroupName;
   }
 
   /**
@@ -251,6 +379,13 @@ class ImportParser {
       configGroupMap.set(group.name, group.order);
       groupMap.set(group.name, []);
     });
+
+    // S'assurer que le groupe par défaut existe
+    if (!groupMap.has(this.defaultGroupName)) {
+      const defaultOrder = 999; // Ordre élevé par défaut
+      groupMap.set(this.defaultGroupName, []);
+      configGroupMap.set(this.defaultGroupName, defaultOrder);
+    }
 
     // Répartir les imports dans les groupes appropriés
     imports.forEach(importObj => {
@@ -269,17 +404,15 @@ class ImportParser {
       else if (importObj.groupName && groupMap.has(importObj.groupName)) {
         groupMap.get(importObj.groupName)!.push(importObj);
       } 
-      // Fallback sur Misc
+      // Fallback sur le groupe par défaut
       else {
-        if (!groupMap.has('Misc')) {
-          groupMap.set('Misc', []);
-        }
-        groupMap.get('Misc')!.push(importObj);
+        groupMap.get(this.defaultGroupName)!.push(importObj);
       }
     });
 
     // Pour chaque groupe, trier les imports selon les règles spécifiées
     groupMap.forEach((importsInGroup, groupName) => {
+      console.log('groupName', groupName);
       groupMap.set(groupName, this.sortImportsWithinGroup(importsInGroup));
     });
 
@@ -304,7 +437,9 @@ class ImportParser {
     }
 
     // Ajouter les groupes de sous-dossiers @app (ordre basé sur la configuration de @app)
-    const appGroupOrder = configGroupMap.get('@app') ?? 2; // Par défaut ordre 2 comme dans la config
+    const appGroup = this.config.importGroups.find(g => g.regex.toString().includes('@app'));
+    const appGroupOrder = appGroup ? appGroup.order : 2; // Par défaut ordre 2
+    
     const sortedSubfolders = Array.from(appSubfolderGroups.keys()).sort();
     
     for (const subfolderName of sortedSubfolders) {
@@ -333,33 +468,20 @@ class ImportParser {
    */
   private sortImportsWithinGroup(imports: ParsedImport[]): ParsedImport[] {
     return imports.sort((a, b) => {
-      // Règle 1: Les imports React ont toujours la priorité dans leur groupe
-      if (a.isReact && !b.isReact) return -1;
-      if (!a.isReact && b.isReact) return 1;
+      // Règle 1: Les imports prioritaires (React, etc.) ont toujours la priorité dans leur groupe
+      if (a.isPriority && !b.isPriority) return -1;
+      if (!a.isPriority && b.isPriority) return 1;
       
-      // Si les deux sont des imports React, appliquer l'ordre spécifique pour React
-      if (a.isReact && b.isReact) {
-        const reactOrder: Record<ImportType, number> = {
-          'default': 0,
-          'named': 1,
-          'typeDefault': 2,
-          'typeNamed': 3,
-          'sideEffect': 4
-        };
-        return reactOrder[a.type] - reactOrder[b.type];
+      // Si les deux sont des imports prioritaires, appliquer l'ordre spécifique (ex: React)
+      if (a.isPriority && b.isPriority) {
+        if (a.type !== b.type) {
+          return this.reactTypeOrder[a.type] - this.reactTypeOrder[b.type];
+        }
       }
       
       // Règle 2: Appliquer la hiérarchie générale des types d'imports
-      const typeOrder: Record<ImportType, number> = {
-        'sideEffect': 0,
-        'default': 1,
-        'named': 2,
-        'typeDefault': 3,
-        'typeNamed': 4
-      };
-      
       if (a.type !== b.type) {
-        return typeOrder[a.type] - typeOrder[b.type];
+        return this.typeOrder[a.type] - this.typeOrder[b.type];
       }
       
       // Règle 3: Tri alphabétique sur la source
@@ -393,5 +515,5 @@ function parseImports(sourceCode: string, config: ParserConfig): {
 /**
  * Exporte les fonctions et classes principales
  */
-export { ImportParser, parseImports };
-export type { ParserConfig, ConfigImportGroup, ImportGroup };
+export { ImportParser, parseImports, DEFAULT_CONFIG };
+export type { ParserConfig, ConfigImportGroup, ImportGroup, TypeOrder, SourcePatterns };

@@ -1,28 +1,29 @@
 // Exemple d'utilisation
 
 import { writeFileSync } from 'fs';
-import { parseImports } from './parser';
+import { parseImports, DEFAULT_CONFIG, ParserConfig } from './parser';
 import * as path from 'path';
 
-type ParserConfig = {
-    importGroups: Array<{ name: string, regex: RegExp, order: number }>
-};
 
 const config: ParserConfig = {
-    importGroups: [
-        { name: 'Misc', regex: /^(react|react-.*|lodash|date-fns|classnames|@fortawesome|@reach|uuid|@tanstack|ag-grid-community|framer-motion)$/, order: 0 },
-        { name: 'DS', regex: /^ds$/, order: 1 },
-        { name: '@app/dossier', regex: /^@app\/dossier/, order: 2 },
-        { name: '@app', regex: /^@app/, order: 2 },
-        { name: '@core', regex: /^@core/, order: 3 },
-        { name: '@library', regex: /^@library/, order: 4 },
-        { name: 'Utils', regex: /^yutils/, order: 5 },
-    ]
+  importGroups: [
+    { name: 'Misc', regex: /^(react|lodash|uuid)$/, order: 0, isDefault: true },
+    { name: 'Composants', regex: /^@components/, order: 1 },
+    { name: 'Utils', regex: /^@utils/, order: 2 },
+  ],
+  priorityImports: [/^react(-dom)?$/],
+  patterns: {
+    ...DEFAULT_CONFIG.patterns,
+    appSubfolderPattern: /@app\/([^/]+)/
+  }
 };
 
 const sourceCode = `
 import React from 'react';
 import React as R from 'react';
+import type Danger from 'danger';
+import { Fragment, useCallback, type ChangeEvent } from 'react';
+import type { ChangeEvent, FC } from 'react';
 import {
     Fragment,
     useCallback,

@@ -4,11 +4,10 @@ import path from 'path';
 
 const config: ParserConfig = {
   importGroups: [
-    { name: 'Misc', regex: /^(lodash|react|uuid)$/, order: 0, isDefault: true },
+    { name: 'Misc', regex: /^(react|lodash|uuid)$/, order: 0, isDefault: true },
     { name: 'Composants', regex: /^@components/, order: 1 },
     { name: 'Utils', regex: /^@utils/, order: 2 },
   ],
-//   priorityImports: [/^react(-dom)?$/],
   patterns: {
     ...DEFAULT_CONFIG.patterns,
     appSubfolderPattern: /@app\/([^/]+)/
@@ -181,17 +180,342 @@ import useUtilisateurSearch from '@app/client/providers/parametrage/utilisateurs
 import { useClientNotification } from '@app/notification/ClientNotificationProvider';
 `;
 
-const sourceCode3 = `import{Component1,Component2}from'module';`;
+// Cas de test avec différents types d'erreurs
+const problematicImports = `
+import React from 'react';
+import React as R from 'react';
+import type Danger from 'danger';
+import { Fragment, useCallback, type ChangeEvent } from 'react';
+import type { ChangeEvent, FC } from 'react';
+import {
+    Fragment,
+    useCallback,
+    useEffect,
+    type ChangeEvent,
+    useMemo,
+    useRef,
+    useState
+}                          from 'react';
+import type {
+    ChangeEvent,
+    FC
+}                          from 'react';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { navigate }        from '@reach/router';
+import {
+    createColumnHelper,
+    getCoreRowModel,
+    getFilteredRowModel,
+    useReactTable
+}                          from '@tanstack/react-table';
+import type {
+    Cell,
+    ColumnDef
+}                          from '@tanstack/react-table';
+import cn                  from 'classnames';
+import {
+    addWeeks,
+    differenceInDays,
+    eachDayOfInterval,
+    eachWeekOfInterval,
+    endOfDay,
+    format,
+    getWeek,
+    isBefore,
+    isSameDay,
+    isWeekend,
+    isWithinInterval,
+    lastDayOfMonth,
+    lastDayOfWeek,
+    parseISO,
+    startOfDay,
+    startOfMonth,
+    subWeeks
+}                          from 'date-fns';
+import { fr }              from 'date-fns/locale';
+import {
+    filter,
+    find,
+    first,
+    isEmpty,
+    last,
+    map,
+    orderBy
+}                          from 'lodash';
+import { v4 as uuidv4 }    from 'uuid';
+// DS (Alphabetical order + group DS + aligned from based on longest length name)
+import {
+    useYpModal,
+    useYpStepper,
+    useYpWrapperContext,
+    YpAlert,
+    YpButton,
+    YpConfirmModal,
+    YpDataTableTimeline,
+    YpElement,
+    YpFormModal,
+    YpInput,
+    YpPopover,
+    YpSelect,
+    YpSkeleton,
+    YpStepperNew,
+    YpTag,
+    YpTooltip,
+    YpTypography
+}                        from 'ds';
+// @app/client (group @app/client)
+import useUtilisateurSearch  from '@app/client/providers/parametrage/utilisateurs/UtilisateurSearchProvider';
+// @app/dossier (Alphabetical order + group @app/dossier + path subfolders alphabetical order order)
+import AbsenceRapportComponent                        from '@app/dossier/components/absences/AbsenceRapportComponent';
+import AbsenceDsnComponent                            from '@app/dossier/components/absences/dsn/AbsenceDsnComponent';
+import AbsenceImportFormComponent                     from '@app/dossier/components/absences/import/AbsenceImportFormComponent';
+import AbsenceInitFormComponent                       from '@app/dossier/components/absences/init/AbsenceInitFormComponent';
+import AbsenceParamFormComponent                      from '@app/dossier/components/absences/param/AbsenceParamFormComponent';
+import AbsenceRecapDetailComponent                    from '@app/dossier/components/absences/recap/AbsenceRecapDetailComponent';
+import SalarieCellRenderer                            from '@app/dossier/components/salaries/SalarieCellRenderer';
+import type RegroupementAbsenceModel                  from '@app/dossier/models/absences/RegroupementAbsenceModel';
+import type DossierModel                              from '@app/dossier/models/DossierModel';
+import { AbsenceFilterEnum }                          from '@app/dossier/models/enums/AbsenceFilterEnum';
+import DsnAtStatut                                    from '@app/dossier/models/enums/DsnAtStatus';
+import GenerationDsnStatutDepot                       from '@app/dossier/models/enums/GenerationDsnStatutDepot';
+import ModeDemarrageAbsenceEnum                       from '@app/dossier/models/enums/ModeDemarrageAbsence';
+import NatureEvenementAbsenceEnum                     from '@app/dossier/models/enums/NatureEvenementAbsence';
+import RegroupementAbsenceStatutEnum                  from '@app/dossier/models/enums/RegroupementAbsenceStatut';
+import StatutRegroupementAbsenceEnum                  from '@app/dossier/models/enums/StatutRegroupementAbsence';
+import { StatutImportEnum }                           from '@app/dossier/models/RapportImportModel';
+import type SalariesAbsencesListModel                 from '@app/dossier/models/SalariesAbsencesListModel';
+import useAbsenceImport                               from '@app/dossier/providers/absences/import/AbsenceImportProvider';
+import useRegroupementAbsenceDetail                   from '@app/dossier/providers/absences/RegroupementAbsenceDetailProvider';
+import type { TRegroupementAbsenceAdditionals }       from '@app/dossier/providers/absences/RegroupementAbsenceDetailProvider';
+import useRegroupementsAbsencesList                   from '@app/dossier/providers/absences/RegroupementsAbsencesListProvider';
+import type { TRegroupementsAbsencesListAdditionals } from '@app/dossier/providers/absences/RegroupementsAbsencesListProvider';
+import { useDossierContext }                          from '@app/dossier/providers/contexts/DossierContextProvider';
+import useDsnAtActionsProvider                        from '@app/dossier/providers/dsn/DsnAtActionsProvider';
+import useDsnAtListProvider                           from '@app/dossier/providers/dsn/DsnAtListProvider';
+import useDsnAtResumeListProvider                     from '@app/dossier/providers/dsn/DsnAtResumeListProvider';
+import useRapportImportDetail                         from '@app/dossier/providers/edp/RapportImportDetailProvider';
+import useRapportImportLast                           from '@app/dossier/providers/edp/RapportImportLastProvider';
+import useFichesHistorisationList                     from '@app/dossier/providers/fiches/FichesHistorisationListProvider';
+import { moduleRoute as DossierModule }               from '@app/dossier/resources/common/Router';
+// @app/notification (group @app/notification)
+import { useClientNotification } from '@app/notification/ClientNotificationProvider';
+// @core (Here from is aligned based on the whole group because of useUserContext length)
+import type {
+    TDataProviderReturn,
+    WsDataModel
+}                         from '@core/models/ProviderModel';
+import { useUserContext } from '@core/providers/contexts/UserContextProvider';
+import { getLocationId }  from '@core/utils/misc';
+// @library (group @library)
+import { getDateFormat }      from '@library/utils/dates';
+import { useSearch }          from '@library/utils/search';
+import { getPageStyleHeight } from '@library/utils/styles';
+/*
+*  Utils (group Utils)
+*  Import nommée donc nous faisons ce raisonnement :
+*  On parcour les noms des imports par longueur = getTextPreview.length : Ce qui ici nous donne 14 charactère
+*  Nous avons ensuite 4 espace d'indentation
+*  Sur la ligne on a donc 4 charactère (Parce que on as 3 espaces et une accolade de fermeture '}')
+*  + 1 charactère d'espacement avant from (Toujours)
+*  Ce qui nous donne 19 charactères avant "from 'yutils/text'".
+*/
+import { getPalette } from 'yutils/colors';
+import {
+    conjugate,
+    getTextPreview
+}                     from 'yutils/text';
+`;
 
-const run = () => {
-    const timestamp = Date.now();
-    console.time('Parse imports execution time');
-    const results = parseImports(sourceCode3, config);
-    // console.log(JSON.stringify(results.groups, null, 2));
-    console.timeEnd('Parse imports execution time');
-    const outputPath = path.resolve(__dirname, `./results/test-${timestamp}.json`);
-    writeFileSync(outputPath, JSON.stringify(results, null, 2));
-    console.log(`Results written to: ${outputPath}`);
+const extraTestCases = `
+// Import avec ligne vide (devrait être filtré)
+
+// Import avec as mal formé (devrait donner une erreur explicative)
+import React as R from 'react';
+
+// Import avec des commentaires en fin de ligne
+import { useState } from 'react'; // Commentaire qui sera supprimé
+
+// Import écrit sur plusieurs lignes
+import {
+  Component,
+  Fragment,
+  useState // Commentaire en fin de ligne à l'intérieur d'accolades
+} from 'react';
+
+// Import avec type inline et plusieurs composants
+import { useCallback, type ChangeEvent, useEffect } from 'react';
+
+// Import avec alias correctement formé
+import { Component as C } from 'react';
+
+// Import par défaut avec alias correctement formé
+import React as R2 from 'react';
+
+// Type import
+import type { FC } from 'react';
+
+// Import avec specifiers répétés (devrait être dédupliqué)
+import { useState, useEffect, useState } from 'react';
+`;
+
+// Ajout de cas de test supplémentaires pour les scénarios problématiques
+
+const additionalSpecialCases = `
+// Import par défaut avec alias (maintenant correctement géré)
+import React as R from 'react';
+
+// Import d'espace de noms (namespace)
+import * as React from 'react';
+
+// Import avec duplications (maintenant correctement détecté)
+import { useState, useEffect, useState } from 'react';
+
+// Import avec plusieurs alias
+import { Component as C, Fragment as F } from 'react';
+
+// Import avec mélange de types et d'alias
+import { useState, type FC, useEffect, type ComponentType as CT } from 'react';
+
+// Import avec éléments par défaut et nommés
+import React, { useState, useEffect } from 'react';
+
+// Import d'espace de noms suivi d'un import nommé (cas inhabituel)
+import * as React, { useState } from 'react';
+`;
+
+// Fonction de test spécifique pour les imports avec alias
+function testAliasImports() {
+  console.log('\n=== Test 3: Gestion des alias et cas spéciaux ===');
+  const results = parseImports(additionalSpecialCases, config);
+  
+  console.log('\n=== Imports Valides ===');
+  results.groups.forEach(group => {
+    console.log(`\nGroupe: ${group.name} (${group.imports.length} imports)`);
+    group.imports.forEach((imp, idx) => {
+      console.log(`[${idx + 1}] Type: ${imp.type}, Source: ${imp.source}`);
+      console.log(`    Specifiers: ${imp.specifiers.join(', ')}`);
+      console.log(`    Raw: ${imp.raw}`);
+    });
+  });
+  
+  console.log('\n=== Imports Invalides ===');
+  if (results.invalidImports && results.invalidImports.length > 0) {
+    results.invalidImports.forEach((invalid, index) => {
+      console.log(`[${index + 1}] Raw: "${invalid.raw}"`);
+      console.log(`    Error: ${invalid.error}`);
+      console.log('---');
+    });
+  } else {
+    console.log('Aucun import invalide détecté dans les cas spéciaux.');
+  }
+  
+  // Écrire les résultats dans un fichier
+  const timestamp = Date.now();
+  const outputPath = path.resolve(__dirname, `./results/test-special-cases-${timestamp}.json`);
+  writeFileSync(outputPath, JSON.stringify(results, null, 2));
+  console.log(`Résultats des cas spéciaux écrits dans: ${outputPath}`);
 }
+
+const duplicatesTestCases = `
+// Test 1: Doublons simples
+import { useState, useState, useEffect } from 'react';
+
+// Test 2: Doublons avec type
+import { type FC, type FC, Component } from 'react';
+
+// Test 3: Doublons avec alias
+import { Component, Component as C, Component } from 'react';
+
+// Test 4: Mélange de doublons variés
+import { useState, type FC, useState, Component as C, type FC, Component, Component as Comp } from 'react';
+
+// Test 5: Doublons dans un import multi-lignes
+import {
+  useState,
+  useEffect,
+  useState,
+  useContext,
+  useEffect
+} from 'react';
+
+// Test 6: Doublons avec commentaires
+import { 
+  useState, // State hook
+  useEffect, // Effect hook
+  useState  // Doublon qui doit être supprimé
+} from 'react';
+`;
+
+// Ajouter cette fonction de test spécifique dans test.ts
+function testDuplicateCorrection() {
+  console.log('\n=== Test spécifique: Correction automatique des doublons ===');
+  
+  const timestamp = Date.now();
+  const results = parseImports(duplicatesTestCases, config);
+  
+  console.log('\n=== Imports Valides Après Correction ===');
+  results.groups.forEach(group => {
+    console.log(`\nGroupe: ${group.name} (${group.imports.length} imports)`);
+    group.imports.forEach((imp, idx) => {
+      console.log(`[${idx + 1}] Type: ${imp.type}, Source: ${imp.source}`);
+      console.log(`    Specifiers: ${imp.specifiers.join(', ')}`);
+      console.log(`    Raw: ${imp.raw}`);
+    });
+  });
+  
+  console.log('\n=== Imports Invalides (ne devraient plus exister) ===');
+  if (results.invalidImports && results.invalidImports.length > 0) {
+    results.invalidImports.forEach((invalid, index) => {
+      console.log(`[${index + 1}] Raw: "${invalid.raw}"`);
+      console.log(`    Error: ${invalid.error}`);
+      console.log('---');
+    });
+  } else {
+    console.log('Aucun import invalide détecté - Tous les doublons ont été corrigés automatiquement!');
+  }
+  
+  // Écrire les résultats dans un fichier
+  const outputPath = path.resolve(__dirname, `./results/test-duplicate-correction-${timestamp}.json`);
+  writeFileSync(outputPath, JSON.stringify(results, null, 2));
+  console.log(`Résultats écrits dans: ${outputPath}`);
+  
+  return results;
+}
+
+// Modification de run pour inclure ce test
+const runExtendedWithDuplicateTest = () => {
+  const timestamp = Date.now();
+  console.time('Parse imports execution time');
+  
+  try {
+    // Tests originaux...
+    
+    // Test spécifique pour la correction des doublons
+    const duplicateResults = testDuplicateCorrection();
+    
+    // Vérifier l'efficacité de la correction
+    const duplicateSpecsCount = duplicateResults.originalImports.length;
+    const invalidCount = duplicateResults.invalidImports?.length || 0;
+    const validCount = duplicateResults.groups.reduce((acc, group) => acc + group.imports.length, 0);
+    
+    console.log(`\n=== Statistiques de correction des doublons ===`);
+    console.log(`Imports originaux: ${duplicateSpecsCount}`);
+    console.log(`Imports valides après correction: ${validCount}`);
+    console.log(`Imports qui n'ont pas pu être corrigés: ${invalidCount}`);
+    
+    if (invalidCount === 0 && validCount > 0) {
+      console.log(`✅ SUCCÈS: Tous les imports avec doublons ont été corrigés automatiquement!`);
+    } else if (invalidCount > 0) {
+      console.log(`⚠️ ATTENTION: Certains imports avec doublons n'ont pas pu être corrigés.`);
+    }
+    
+    console.timeEnd('Parse imports execution time');
+  } catch (error) {
+    console.error('Parser failed with error:', error);
+  }
+};
+
+// Remplacer run par la version qui inclut le test de correction des doublons
+const run = runExtendedWithDuplicateTest;
 
 run();

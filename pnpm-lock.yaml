@@ -7,10 +7,29 @@ settings:
 importers:
 
   .:
+    dependencies:
+      '@babel/generator':
+        specifier: ^7.26.10
+        version: 7.26.10
+      '@babel/parser':
+        specifier: ^7.26.10
+        version: 7.26.10
+      '@babel/traverse':
+        specifier: ^7.26.10
+        version: 7.26.10
+      '@babel/types':
+        specifier: ^7.26.10
+        version: 7.26.10
     devDependencies:
       '@eslint/js':
         specifier: ^9.22.0
         version: 9.22.0
+      '@types/babel__generator':
+        specifier: ^7.6.8
+        version: 7.6.8
+      '@types/babel__traverse':
+        specifier: ^7.20.6
+        version: 7.20.6
       '@types/mocha':
         specifier: ^10.0.10
         version: 10.0.10

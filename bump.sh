@@ -1,5 +1,6 @@
 #!/bin/bash
 # Ce script est utilisé pour mettre à jour la version dans le fichier package.json
+# et créer automatiquement un tag Git pour la release
 
 # Fonction d'affichage de l'aide
 show_help() {
@@ -68,3 +69,22 @@ else
 fi
 
 echo "Version mise à jour avec succès: $NEW_VERSION"
+
+# Créer un commit Git avec la nouvelle version
+git add package.json
+git commit -m "Bump version to $NEW_VERSION"
+
+# Créer un tag Git pour la nouvelle version
+git tag "v$NEW_VERSION"
+
+# Demander confirmation avant de pousser
+read -p "Voulez-vous pousser le commit et le tag vers GitHub? (o/n) " -n 1 -r
+echo
+if [[ $REPLY =~ ^[Oo]$ ]]; then
+  # Pousser le commit et le tag
+  git push origin main
+  git push origin "v$NEW_VERSION"
+  echo "Commit et tag poussés avec succès. GitHub Actions va maintenant créer une release."
+else
+  echo "Commit et tag créés localement. Utilisez 'git push origin main && git push origin v$NEW_VERSION' pour déclencher la création de la release."
+fi

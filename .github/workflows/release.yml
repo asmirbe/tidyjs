@@ -18,10 +18,6 @@ jobs:
         with:
           node-version: '18'  # Updated Node.js version
           
-      - name: Install dependencies
-        run: npm install
-
-        
       - name: Troubleshoot npm instal failure
         if: failure()
         run: cat /home/runner/.npm/_logs/*-debug-*.log

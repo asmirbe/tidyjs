@@ -1,101 +1,14 @@
 import { validateAndFixImportWithBabel } from './fixer';
-
-/**
- * Types de configuration avancée pour le parser d'import
- */
-type ConfigImportGroup = {
-  name: string;
-  regex: RegExp;
-  order: number;
-  isDefault?: boolean; // Indique si ce groupe est utilisé par défaut pour les imports non classifiés
-};
-
-type TypeOrder = {
-  [key in ImportType]: number;
-};
-
-type SourcePatterns = {
-  appSubfolderPattern?: RegExp; // Regex pour détecter les sous-dossiers @app
-};
-
-type ParserConfig = {
-  importGroups: ConfigImportGroup[];
-  defaultGroupName?: string;    // Nom du groupe par défaut (si non spécifié, on utilise le premier groupe avec isDefault=true)
-  typeOrder?: TypeOrder;        // Ordre des types d'imports
-  TypeOrder?: TypeOrder;   // Ordre spécifique pour les imports React
-  patterns?: SourcePatterns;    // Patterns pour classification des sources
-  priorityImports?: RegExp[];   // Sources qui ont toujours priorité dans leur groupe
-};
-
-/**
- * Types pour l'analyse et l'organisation des imports
- */
-type ImportType = 'default' | 'named' | 'typeDefault' | 'typeNamed' | 'sideEffect';
-type ImportSource = string;
-type ImportSpecifier = string;
-
-export interface ParsedImport {
-  type: ImportType;
-  source: ImportSource;
-  specifiers: ImportSpecifier[];
-  raw: string;
-  groupName: string | null;
-  isPriority: boolean;
-  appSubfolder: string | null;
-}
-
-interface ImportGroup {
-  name: string;
-  order: number;
-  imports: ParsedImport[];
-}
-
-/**
- * Configuration par défaut pour le parser
- */
-const DEFAULT_CONFIG: Partial<ParserConfig> = {
-  defaultGroupName: 'Misc',
-  typeOrder: {
-    'sideEffect': 0,
-    'default': 1,
-    'named': 2,
-    'typeDefault': 3,
-    'typeNamed': 4
-  },
-  TypeOrder: {
-    'default': 0,
-    'named': 1,
-    'typeDefault': 2,
-    'typeNamed': 3,
-    'sideEffect': 4
-  },
-  patterns: {
-    appSubfolderPattern: /@app\/([^/]+)/
-  }
-};
-
-// Ajout d'une nouvelle classe d'erreur pour le parser
-class ImportParserError extends Error {
-  constructor(message: string, public raw: string) {
-    super(message);
-    this.name = 'ImportParserError';
-  }
-}
-
-// Ajouter cette interface pour les imports invalides
-interface InvalidImport {
-  raw: string;
-  error: string;
-}
-
-// Modifier l'interface de retour du parser pour inclure les imports invalides
-interface ParserResult {
-  groups: ImportGroup[];
-  originalImports: string[];
-  appSubfolders: string[];
-  invalidImports?: InvalidImport[];
-}
-
+import { ImportParserError } from './errors';
+import { 
+  ParserConfig, 
+  ParsedImport, 
+  ImportGroup, 
+  TypeOrder, 
+  SourcePatterns, 
+  InvalidImport,
+  DEFAULT_CONFIG
+} from './types';
 
 /**
  * Classe principale pour le parser d'imports
@@ -252,8 +165,6 @@ class ImportParser {
    * Analyse un statement d'import individuel
    * @returns ParsedImport | ParsedImport[] - Renvoie un seul import ou un tableau si des types inline sont détectés
    */
-  // Modifications pour gérer correctement les cas spéciaux dans le parser
-
   private parseImport(importStmt: string): ParsedImport | ParsedImport[] {
     try {
       // Déterminer le type d'import
@@ -290,7 +201,7 @@ class ImportParser {
       }
 
       // Extraire les specifiers (ce qui est importé)
-      let type: ImportType = 'default';
+      let type: 'default' | 'named' | 'typeDefault' | 'typeNamed' | 'sideEffect' = 'default';
       let specifiers: string[] = [];
 
       if (isSideEffect) {
@@ -439,10 +350,6 @@ class ImportParser {
   /**
    * Supprime les duplications dans un tableau de spécificateurs
    */
-  /**
-   * Version améliorée de deduplicateSpecifiers qui gère tous les cas correctement
-   * (types inline, alias et autres formes complexes)
-   */
   private deduplicateSpecifiers(specifiers: string[]): string[] {
     // Classifier les spécificateurs par leur nom de base (sans alias ni type)
     const uniqueSpecs = new Map<string, string>();
@@ -539,10 +446,6 @@ class ImportParser {
   }
 
   /**
- * Méthodes additionnelles pour la gestion des commentaires dans les imports
- */
-
-  /**
    * Nettoie une déclaration d'import en supprimant les commentaires et en normalisant le formatage
    * @param importStmt La déclaration d'import à nettoyer
    * @returns La déclaration d'import nettoyée
@@ -578,7 +481,7 @@ class ImportParser {
     return cleaned;
   }
 
-  // 2. Version améliorée de mergeImports pour vérifier la cohérence syntaxique
+  // Version améliorée de mergeImports pour vérifier la cohérence syntaxique
   private mergeImports(imports: ParsedImport[]): ParsedImport[] {
     // Map pour stocker les imports fusionnés par clé (type + source)
     const mergedImportsMap = new Map<string, ParsedImport>();
@@ -631,7 +534,7 @@ class ImportParser {
     return Array.from(mergedImportsMap.values());
   }
 
-  // 3. Nouvelle méthode pour valider la cohérence entre les specifiers et la raw declaration
+  // Nouvelle méthode pour valider la cohérence entre les specifiers et la raw declaration
   private validateSpecifiersConsistency(importObj: ParsedImport): void {
     // Pour les imports nommés, vérifier que tous les specifiers sont présents dans la déclaration raw
     if (importObj.type === 'named' || importObj.type === 'typeNamed') {
@@ -657,7 +560,7 @@ class ImportParser {
     }
   }
 
-  // 4. Méthode pour comparer sémantiquement deux déclarations d'import (ignore les différences de formatage)
+  // Méthode pour comparer sémantiquement deux déclarations d'import (ignore les différences de formatage)
   private areImportsSemanticallyEquivalent(import1: string, import2: string): boolean {
     // Normaliser les deux imports en supprimant espaces, retours à la ligne, etc.
     const normalize = (str: string) => str.replace(/\s+/g, ' ').trim();
@@ -839,13 +742,4 @@ class ImportParser {
   }
 }
 
-function parseImports(sourceCode: string, config: ParserConfig): ParserResult {
-  const parser = new ImportParser(config);
-  const { groups, originalImports, invalidImports } = parser.parse(sourceCode);
-  const appSubfolders = parser.getAppSubfolders();
-
-  return { groups, originalImports, appSubfolders, invalidImports };
-}
-
-export { ImportParser, parseImports, DEFAULT_CONFIG, ImportParserError };
-export type { ParserConfig, ConfigImportGroup, ImportGroup, TypeOrder, SourcePatterns, InvalidImport, ParserResult };
+export { ImportParser };

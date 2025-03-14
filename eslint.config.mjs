@@ -17,7 +17,7 @@ export default [
         languageOptions: {
             parser: tsParser,
             parserOptions: {
-                project: "./tsconfig.eslint.json", // Utilise le fichier tsconfig spécifique pour ESLint
+                // project: "./tsconfig.eslint.json", // Utilise le fichier tsconfig spécifique pour ESLint
                 ecmaVersion: 2022,
                 sourceType: "module",
             },

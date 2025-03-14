@@ -1,5 +1,5 @@
 import { writeFileSync } from 'fs';
-import { parseImports, DEFAULT_CONFIG, ParserConfig } from '../parser';
+import { parseImports, DEFAULT_CONFIG, ParserConfig } from '../index';
 import path from 'path';
 
 const config: ParserConfig = {

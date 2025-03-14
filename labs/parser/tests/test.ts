@@ -1,5 +1,5 @@
 import { writeFileSync } from 'fs';
-import { parseImports, DEFAULT_CONFIG, ParserConfig } from './parser';
+import { parseImports, DEFAULT_CONFIG, ParserConfig } from '../parser';
 import path from 'path';
 
 const config: ParserConfig = {
@@ -411,7 +411,7 @@ function testAliasImports() {
   
   // Écrire les résultats dans un fichier
   const timestamp = Date.now();
-  const outputPath = path.resolve(__dirname, `./results/test-special-cases-${timestamp}.json`);
+  const outputPath = path.resolve(__dirname, `../results/test-special-cases-${timestamp}.json`);
   writeFileSync(outputPath, JSON.stringify(results, null, 2));
   console.log(`Résultats des cas spéciaux écrits dans: ${outputPath}`);
 }
@@ -475,11 +475,113 @@ function testDuplicateCorrection() {
   }
   
   // Écrire les résultats dans un fichier
-  const outputPath = path.resolve(__dirname, `./results/test-duplicate-correction-${timestamp}.json`);
+  const outputPath = path.resolve(__dirname, `../results/test-duplicate-correction-${timestamp}.json`);
   writeFileSync(outputPath, JSON.stringify(results, null, 2));
   console.log(`Résultats écrits dans: ${outputPath}`);
   
   return results;
+}
+
+/**
+ * Fonction pour tester les cas d'erreur
+ * Vérifie que les imports qui ne peuvent pas être analysés ou corrigés renvoient bien une erreur
+ */
+function testErrorCases() {
+  console.log('\n=== Test des cas d\'erreur ===');
+  
+  // Tableau de cas de test avec des erreurs attendues
+  const errorCases = [
+    {
+      name: "Import avec syntaxe incorrecte",
+      code: "import React as from 'react';",
+      shouldFail: true
+    },
+    {
+      name: "Import avec alias malformé",
+      code: "import Component as C, { useState } from 'react';",
+      shouldFail: true
+    },
+    {
+      name: "Import avec source manquante",
+      code: "import { useState };",
+      shouldFail: true
+    },
+    {
+      name: "Import avec accolades non fermées",
+      code: "import { useState, useEffect from 'react';",
+      shouldFail: true
+    },
+    {
+      name: "Import avec namespace et import nommé (syntaxe invalide)",
+      code: "import * as React, { useState } from 'react';",
+      shouldFail: true
+    },
+    {
+      name: "Import avec caractères spéciaux invalides",
+      code: "import { useState, use$Effect } from 'react';",
+      shouldFail: false // Devrait réussir car les $ sont valides dans les identifiants JS
+    },
+    {
+      name: "Import avec guillemets non fermés",
+      code: "import { useState } from 'react;",
+      shouldFail: true
+    },
+    {
+      name: "Import avec mélange de guillemets",
+      code: "import { useState } from \"react';",
+      shouldFail: true
+    },
+    {
+      name: "Import avec point-virgule manquant",
+      code: "import { useState } from 'react'",
+      shouldFail: false // Le parser devrait ajouter le point-virgule manquant
+    },
+    {
+      name: "Import vide",
+      code: "import {} from 'react';",
+      shouldFail: false // Syntaxiquement valide même si inutile
+    }
+  ];
+  
+  // Exécuter les tests
+  let passedTests = 0;
+  let totalTests = errorCases.length;
+  
+  for (const testCase of errorCases) {
+    console.log(`\nTest: ${testCase.name}`);
+    const result = parseImports(testCase.code, config);
+    
+    if (checkOutput(testCase, result)) {
+      passedTests++;
+    }
+  }
+  
+  // Afficher le résumé
+  console.log(`\n=== Résumé des tests d'erreur ===`);
+  console.log(`Tests réussis: ${passedTests}/${totalTests} (${Math.round(passedTests/totalTests*100)}%)`);
+  
+  return { passedTests, totalTests };
+}
+
+/**
+ * Vérifie si le résultat du parsing correspond au comportement attendu
+ */
+function checkOutput(testCase: any, result: any) {
+  const hasInvalidImports = result.invalidImports && result.invalidImports.length > 0;
+  
+  if (testCase.shouldFail && !hasInvalidImports) {
+    console.log(`❌ ÉCHEC: "${testCase.name}" devrait échouer mais a été analysé avec succès`);
+    return false;
+  } else if (!testCase.shouldFail && hasInvalidImports) {
+    console.log(`❌ ÉCHEC: "${testCase.name}" devrait réussir mais a échoué avec l'erreur: ${result.invalidImports[0].error}`);
+    return false;
+  } else {
+    console.log(`✅ SUCCÈS: "${testCase.name}" - Comportement attendu confirmé`);
+    if (hasInvalidImports) {
+      console.log(`   Erreur: ${result.invalidImports[0].error}`);
+    }
+    return true;
+  }
 }
 
 // Modification de run pour inclure ce test
@@ -509,13 +611,17 @@ const runExtendedWithDuplicateTest = () => {
       console.log(`⚠️ ATTENTION: Certains imports avec doublons n'ont pas pu être corrigés.`);
     }
     
+    // Test des cas d'erreur
+    const errorResults = testErrorCases();
+    console.log(`\nTests d'erreur: ${errorResults.passedTests}/${errorResults.totalTests} tests réussis`);
+    
     console.timeEnd('Parse imports execution time');
   } catch (error) {
     console.error('Parser failed with error:', error);
   }
 };
 
-// Remplacer run par la version qui inclut le test de correction des doublons
+// Remplacer run par la version qui inclut les tests d'erreur
 const run = runExtendedWithDuplicateTest;
 
 run();

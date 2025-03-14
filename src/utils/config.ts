@@ -16,6 +16,7 @@ const DEFAULT_FORMATTER_CONFIG: FormatterConfig = {
   ],
   alignmentSpacing: 1,
   maxLineLength: 150,
+  formatOnSave: false,
   regexPatterns: (() => {
     const patterns = {
       importLine: /^\s*import\s+.*?(?:from\s+['"][^'"]+['"])?\s*;?.*$/gm,
@@ -29,13 +30,13 @@ const DEFAULT_FORMATTER_CONFIG: FormatterConfig = {
       possibleCommentFragment: /^\s*[a-z]{1,5}\s*$|^\s*\/?\s*[A-Z][a-z]+\s*$|(^\s*\/+\s*$)/,
       appSubfolderPattern: /^@app\/([a-zA-Z0-9_-]+)/
     };
-    
+
     const compiledRegex: Record<string, RegExp> = {};
-    
+
     for (const [key, pattern] of Object.entries(patterns)) {
       compiledRegex[key] = new RegExp(pattern.source, pattern.flags);
     }
-    
+
     return compiledRegex as FormatterConfig['regexPatterns'];
   })(),
 };
@@ -44,7 +45,7 @@ class ConfigManager {
   private config: FormatterConfig;
   private eventEmitter: vscode.EventEmitter<ConfigChangeEvent> = new vscode.EventEmitter<ConfigChangeEvent>();
   private appSubfolders: Map<string, ImportGroup> = new Map();
-  
+
   public readonly onDidConfigChange: vscode.Event<ConfigChangeEvent> = this.eventEmitter.event;
 
   constructor() {
@@ -59,28 +60,28 @@ class ConfigManager {
   public getImportGroups(): ImportGroup[] {
     const baseGroups = [...this.config.importGroups];
     const appSubfolderGroups = Array.from(this.appSubfolders.values());
-    
+
     const sortedGroups = [...baseGroups, ...appSubfolderGroups].sort((a, b) => {
       if (a.name === 'Misc') return -1;
       if (b.name === 'Misc') return 1;
       if (a.name === 'DS') return -1;
       if (b.name === 'DS') return 1;
-      
+
       const aIsApp = a.name.startsWith('@app');
       const bIsApp = b.name.startsWith('@app');
-      
+
       if (aIsApp && !bIsApp) return -1;
       if (!aIsApp && bIsApp) return 1;
-      
+
       if (aIsApp && bIsApp) {
         if (a.name === '@app') return 1;
         if (b.name === '@app') return -1;
         return a.name.localeCompare(b.name);
       }
-      
+
       return a.order - b.order;
     });
-    
+
     return sortedGroups;
   }
 
@@ -97,7 +98,7 @@ class ConfigManager {
       const order = 2;
       const name = `@app/${subfolder}`;
       const regex = new RegExp(`^@app\\/${subfolder}`);
-      
+
       this.appSubfolders.set(subfolder, {
         name,
         regex,
@@ -105,10 +106,10 @@ class ConfigManager {
       });
     }
   }
-  
+
   public loadConfiguration(): void {
     const vsConfig = vscode.workspace.getConfiguration('importFormatter');
-    
+
     const customGroups = vsConfig.get<Array<{ name: string; regex: string; order: number }>>('groups');
     if (customGroups && customGroups.length > 0) {
       this.config.importGroups = customGroups.map((group) => ({
@@ -118,11 +119,17 @@ class ConfigManager {
       }));
       this.eventEmitter.fire({ configKey: 'importGroups', newValue: this.config.importGroups });
     }
-    
+
     const alignmentSpacing = vsConfig.get<number>('alignmentSpacing');
     if (typeof alignmentSpacing === 'number' && alignmentSpacing >= 0) {
       this.config.alignmentSpacing = alignmentSpacing;
       this.eventEmitter.fire({ configKey: 'alignmentSpacing', newValue: alignmentSpacing });
+    }
+
+    const formatOnSave = vsConfig.get<boolean>('formatOnSave');
+    if (typeof formatOnSave === 'boolean') {
+      this.config.formatOnSave = formatOnSave;
+      this.eventEmitter.fire({ configKey: 'formatOnSave', newValue: formatOnSave });
     }
 
     const maxLineLength = vsConfig.get<number>('maxLineLength');
@@ -132,12 +139,17 @@ class ConfigManager {
     }
   }
 
+  public getFormatOnSave(): boolean {
+    return this.config.formatOnSave;
+  }
+
   public getFormatterConfig(): FormatterConfig {
     return {
       importGroups: this.getImportGroups(),
       alignmentSpacing: this.getAlignmentSpacing(),
       regexPatterns: this.getRegexPatterns(),
-      maxLineLength: this.config.maxLineLength
+      maxLineLength: this.config.maxLineLength,
+      formatOnSave: this.config.formatOnSave
     };
   }
 }

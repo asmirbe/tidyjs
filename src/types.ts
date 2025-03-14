@@ -54,5 +54,6 @@ export interface FormatterConfig {
         orphanedFragments: RegExp;
         possibleCommentFragment: RegExp;
     };
+    formatOnSave: boolean;
     maxLineLength: number;
 }

@@ -79,6 +79,11 @@
           "minimum": 0,
           "description": "Number of spaces to add when aligning 'from' keywords in imports"
         },
+        "tidyimport.formatOnSave": {
+          "type": "boolean",
+          "default": false,
+          "description": "Automatically format imports when saving a file"
+        },
         "tidyimport.maxLineLength": {
           "type": "number",
           "default": 150,

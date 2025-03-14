@@ -6,12 +6,14 @@ import { logDebug, logError } from './utils/log';
 
 export function activate(context: vscode.ExtensionContext) : void {
   configManager.loadConfiguration();
-
+  
   vscode.workspace.onDidChangeConfiguration((event) => {
     if (event.affectsConfiguration('importFormatter')) {
       configManager.loadConfiguration();
     }
   });
+
+  const config = configManager.getFormatterConfig();
 
   const formatImportsCommand = vscode.commands.registerCommand(
     'extension.formatImports',
@@ -89,7 +91,41 @@ export function activate(context: vscode.ExtensionContext) : void {
     }
   );
 
-  context.subscriptions.push(formatImportsCommand);
-}
+  // Ajouter un écouteur d'événement pour la sauvegarde
+  const formatOnSave = vscode.workspace.onWillSaveTextDocument(async (event) => {
+    // Vérifier si le formatage à la sauvegarde est activé dans la configuration
+    if (!config.formatOnSave) {
+      return; // Ne rien faire si l'option est désactivée
+    }
 
-// export function deactivate() : void { }
+    // Vérifier si le document est d'un type pris en charge
+    const supportedLanguages = ['typescript', 'javascript', 'typescriptreact', 'javascriptreact'];
+    if (!supportedLanguages.includes(event.document.languageId)) {
+      return;
+    }
+
+    try {
+      const documentText = event.document.getText();
+      const formattedDocument = await formatImports(documentText);
+
+      // Vérifier si le texte a été modifié
+      if (formattedDocument !== documentText) {
+        const fullDocumentRange = new vscode.Range(
+          event.document.positionAt(0),
+          event.document.positionAt(documentText.length)
+        );
+
+        // Ajouter l'édition à la liste des éditions à appliquer lors de la sauvegarde
+        event.waitUntil(Promise.resolve([
+          new vscode.TextEdit(fullDocumentRange, formattedDocument)
+        ]));
+      }
+    } catch (error) {
+      logError('Error formatting on save:', error);
+      // Ne pas bloquer la sauvegarde en cas d'erreur
+    }
+  });
+
+  context.subscriptions.push(formatImportsCommand);
+  context.subscriptions.push(formatImportsCommand, formatOnSave);
+}
